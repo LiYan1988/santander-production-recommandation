@@ -1,0 +1,65 @@
+1. potential features
+
+	ind_empleado: Employee index: A active, B ex employed, F filial, N not employee, P pasive
+	- 309 people changed once
+	
+	indrel: 1 (First/Primary), 99 (Primary customer during the month but not at the end of the month)
+	- indrel: 15979 people changed once
+
+	indrel_1mes: Customer type at the beginning of the month ,1 (First/Primary customer), 2 (co-owner ),P (Potential),3 (former primary), 4(former co-owner)
+	- 123587 changed once, 490 changed twice
+	
+	tiprel_1mes: Customer relation type at the beginning of the month, A (active), I (inactive), P (former customer),R (Potential)
+	- 150152 once, 2093 twice, 2 three times
+
+	conyuemp: Spouse index. 1 if the customer is spouse of an employee
+	- 187 changed
+
+	canal_entrada: channel used by the customer to join
+	- 129924 once, 2127 twice, 21 three times
+
+	ind_actividad_cliente: Activity index (1, active customer; 0, inactive customer)
+	- 84748 once, 126 twice
+
+	renta: Gross income of the household
+	the value counts, change is value counts minus 1
+	- 	1     813173
+		2     104955
+		3      12234
+		4       9312
+		5       3798
+		7       3392
+		6       2792
+		8       2733
+		9       2174
+		10      1278
+		11       590
+		13       112
+		12       101
+		14         1
+ 
+2. xgboost was slow on both Hebbe and Glenn, reinstalling xgboost solves this problem
+
+3. Features:
+	- lag features in 1)
+	- 2nd order combination of the categorical features
+	- sum of all product lag features from the same original feature
+	- diff of these lag features in row direction
+	- 2nd order combination of encoded product lag features
+
+4. Train on other months?
+	- no time to try
+
+5. Ensemble methods? 
+	- RF, EXT, LR, SVM...
+	- no time to optimize parameters
+	- ensemble weight from optimization or xgboost
+
+6. How to reorder columns in pandas?
+	- don't make mistakes
+
+7. mlogloss vs LB MAP
+	- mlogloss 	|	 MAP
+	1.03275552048	0.0296469
+	1.04313591338	0.029642
+	0.995561707492	0.0296749
