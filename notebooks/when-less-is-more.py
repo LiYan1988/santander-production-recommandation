@@ -2,6 +2,15 @@
 Code based on BreakfastPirate Forum post
 __author__ : SRK
 """
+
+import os
+if os.name=='nt':
+    try:
+        mingw_path = 'C:\\Program Files\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin'
+        os.environ['PATH'] = mingw_path + ';' + os.environ['PATH']
+    except:
+        pass
+
 import csv
 import datetime
 from operator import sub
