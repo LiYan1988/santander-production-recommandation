@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import xgboost as xgb
 from sklearn import preprocessing, ensemble
+import tqdm
 
 mapping_dict = {
 'ind_empleado'  : {-99:0, 'N':1, 'B':2, 'F':3, 'A':4, 'S':5},
@@ -110,8 +111,8 @@ def getRent(row):
 def processData(in_file_name, cust_dict):
 	x_vars_list = []
 	y_vars_list = []
-	for row in csv.DictReader(in_file_name):
-		# use only the four months as specified by breakfastpirate #
+	for row in tqdm.tqdm(csv.DictReader(in_file_name)):
+       # use only the four months as specified by breakfastpirate #
 		if row['fecha_dato'] not in ['2015-05-28', '2015-06-28', '2016-05-28', '2016-06-28']:
 			continue
 
