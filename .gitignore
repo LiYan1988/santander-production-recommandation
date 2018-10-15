@@ -1,2 +1,4 @@
 input/*
 *.npy
+*.jar
+*.csv
