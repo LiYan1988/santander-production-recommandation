@@ -41,6 +41,9 @@ cat_cols = list(mapping_dict.keys())
 
 target_cols = ['ind_ahor_fin_ult1','ind_aval_fin_ult1','ind_cco_fin_ult1','ind_cder_fin_ult1','ind_cno_fin_ult1','ind_ctju_fin_ult1','ind_ctma_fin_ult1','ind_ctop_fin_ult1','ind_ctpp_fin_ult1','ind_deco_fin_ult1','ind_deme_fin_ult1','ind_dela_fin_ult1','ind_ecue_fin_ult1','ind_fond_fin_ult1','ind_hip_fin_ult1','ind_plan_fin_ult1','ind_pres_fin_ult1','ind_reca_fin_ult1','ind_tjcr_fin_ult1','ind_valo_fin_ult1','ind_viv_fin_ult1','ind_nomina_ult1','ind_nom_pens_ult1','ind_recibo_ult1']
 target_cols = target_cols[2:]
+del target_cols[7]
+del target_cols[8]
+del target_cols[18]
 
 def getTarget(row):
 	tlist = []
@@ -150,7 +153,7 @@ def runXGB(train_X, train_y, seed_val=0):
 	param['objective'] = 'multi:softprob'
 	param['eta'] = 0.05
 	param['max_depth'] = 8
-	param['silent'] = 1
+	param['silent'] = 0
 	param['num_class'] = 22
 	param['eval_metric'] = "mlogloss"
 	param['min_child_weight'] = 1
@@ -161,7 +164,7 @@ def runXGB(train_X, train_y, seed_val=0):
 
 	plst = list(param.items())
 	xgtrain = xgb.DMatrix(train_X, label=train_y)
-	model = xgb.train(plst, xgtrain, num_rounds)	
+	model = xgb.train(plst, xgtrain, num_rounds, evals=[(xgtrain, 'train')], verbose_eval=True)	
 	return model
 
 
