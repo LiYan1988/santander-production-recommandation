@@ -199,6 +199,7 @@ if __name__ == "__main__":
 	print("Predicting..")
 	xgtest = xgb.DMatrix(test_X)
 	preds = model.predict(xgtest)
+	np.save('preds_raw.npy', preds)
 #	del test_X, xgtest
 	print(datetime.datetime.now()-start_time)
 
