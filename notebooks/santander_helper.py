@@ -145,7 +145,7 @@ def count_pattern(month1, max_lag):
        
     return pattern_count
 
-def create_train_test(month, max_lag=5, target_flag=True):
+def create_train_test(month, max_lag=5, target_flag=True, count_pattern=False):
     '''Create train and test data for month'''
     
     start_time = time.time()
@@ -154,7 +154,7 @@ def create_train_test(month, max_lag=5, target_flag=True):
     month1 = month_list[month_list.index(month2)-1] # the first month
     
     # check if max_lag and month are compatible
-    assert month_list.index(month2)>=max_lag, 'max_lag should be less than the index of {}, which is {}.'.format(
+    assert month_list.index(month2)>=max_lag, 'max_lag should be less than the index of {}, which is {}'.format(
         month2, month_list.index(month2))
     
     print('Loading {} data'.format(month1))
@@ -164,7 +164,7 @@ def create_train_test(month, max_lag=5, target_flag=True):
     # second/later month
     df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
     
-    print('Products in {}...'.format(month2))
+    print('Products in {}'.format(month2))
     # second month products
     df2_target = df2.loc[:, ['ncodpers']+target_cols].copy()
     df2_target.set_index('ncodpers', inplace=True, drop=False) # initially keep ncodpers as a column and drop it later
@@ -173,7 +173,7 @@ def create_train_test(month, max_lag=5, target_flag=True):
     # drop ncodpers from df2_target
     df2_target.drop('ncodpers', axis=1, inplace=True)
     
-    print('Products in {}...'.format(month1))
+    print('Products in {}'.format(month1))
     # first month products for all the customers in the second month
     df1_target = df1.loc[:, ['ncodpers']+target_cols].copy()
     df1_target.set_index('ncodpers', inplace=True, drop=True) # do not keep ncodpers as column
@@ -183,13 +183,13 @@ def create_train_test(month, max_lag=5, target_flag=True):
     df1_target.fillna(0.0, inplace=True)
     df1_target.drop('ncodpers', axis=1, inplace=True)
     
-    print('New products added in {}...'.format(month2))
+    print('New products added in {}'.format(month2))
     # new products from the first to second month
     target = df2_target.subtract(df1_target)
     target[target<0] = 0
     target.fillna(0.0, inplace=True)
     
-    print('Join customer features and previous month products for {}...'.format(month2))
+    print('Join customer features and previous month products for {}'.format(month2))
     # feature of the second month: 
     # 1. customer features in the second month
     # 2. products in the first month
@@ -202,7 +202,7 @@ def create_train_test(month, max_lag=5, target_flag=True):
     x_vars.set_index('ncodpers', drop=True, inplace=True) # set the index to ncodpers again
     x_vars = x_vars.join(df1_target) # direct join since df1_target contains all customers in month2
     
-    print('Concatenate this and previous months ind_activadad_cliente.')
+    print('Concatenate this and previous months ind_activadad_cliente')
     # concatenate this and previous month values of ind_activadad_cliente
     df2_ind_actividad_cliente = df2[['ncodpers', 'ind_actividad_cliente']].copy()
     df2_ind_actividad_cliente.set_index('ncodpers', inplace=True)
@@ -219,7 +219,7 @@ def create_train_test(month, max_lag=5, target_flag=True):
 
     x_vars = pd.merge(x_vars, df2_ind_actividad_cliente, left_index=True, right_index=True, how='left')
     
-    print('Concatenate this and previous months tiprel_1mes.')
+    print('Concatenate this and previous months tiprel_1mes')
     # concatenate this and previous month value of tiprel_1mes
     df2_tiprel_1mes = df2[['ncodpers', 'tiprel_1mes']].copy()
     df2_tiprel_1mes.set_index('ncodpers', inplace=True)
@@ -236,7 +236,7 @@ def create_train_test(month, max_lag=5, target_flag=True):
 
     x_vars = pd.merge(x_vars, df2_tiprel_1mes, left_index=True, right_index=True, how='left')
     
-    print('Combine all products for each customer.')
+    print('Combine all products for each customer')
     # combination of target columns
     x_vars['target_combine'] = np.sum(x_vars[target_cols].values*
         np.float_power(2, np.arange(-10, len(target_cols)-10)), axis=1, dtype=np.float64)
@@ -244,11 +244,12 @@ def create_train_test(month, max_lag=5, target_flag=True):
     # number of purchased products in the previous month
     x_vars['n_products'] = x_vars[target_cols].sum(axis=1)
 
-    print('\nStart counting patterns:')
-    # count patterns of historical products
-    dp = count_pattern(month1, max_lag)
-    x_vars = x_vars.join(dp)
-    x_vars.loc[:, dp.columns] = x_vars.loc[:, dp.columns].fillna(-1)
+    if count_pattern:
+        print('\nStart counting patterns:')
+        # count patterns of historical products
+        dp = count_pattern(month1, max_lag)
+        x_vars = x_vars.join(dp)
+        x_vars.loc[:, dp.columns] = x_vars.loc[:, dp.columns].fillna(-1)
     
     # return x_vars if target_flag is False
     if not target_flag:
@@ -261,6 +262,7 @@ def create_train_test(month, max_lag=5, target_flag=True):
         return x_vars 
     
     if target_flag:    
+        print('Prepare for target')
         # prepare target/label for each added product from the first to second month
         # join target to x_vars
         x_vars_new = x_vars.join(target, rsuffix='_t')
