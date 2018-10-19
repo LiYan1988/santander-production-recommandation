@@ -145,7 +145,7 @@ def count_pattern(month1, max_lag):
        
     return pattern_count
 
-def create_train_test(month, max_lag=5, target_flag=True, count_pattern=False):
+def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
     '''Create train and test data for month'''
     
     start_time = time.time()
@@ -240,11 +240,15 @@ def create_train_test(month, max_lag=5, target_flag=True, count_pattern=False):
     # combination of target columns
     x_vars['target_combine'] = np.sum(x_vars[target_cols].values*
         np.float_power(2, np.arange(-10, len(target_cols)-10)), axis=1, dtype=np.float64)
-    
+    # Load mean encoding data and merge with x_vars
+    target_mean_encoding = pd.read_hdf('../input/target_mean_encoding.hdf', 'target_mean_encoding')
+    target_mean_encoding.set_index('target_combine', inplace=True)
+    x_vars = x_vars.join(target_mean_encoding, on='target_combine')
+
     # number of purchased products in the previous month
     x_vars['n_products'] = x_vars[target_cols].sum(axis=1)
 
-    if count_pattern:
+    if pattern_flag:
         print('\nStart counting patterns:')
         # count patterns of historical products
         dp = count_pattern(month1, max_lag)
@@ -262,7 +266,7 @@ def create_train_test(month, max_lag=5, target_flag=True, count_pattern=False):
         return x_vars 
     
     if target_flag:    
-        print('Prepare for target')
+        print('Prepare target')
         # prepare target/label for each added product from the first to second month
         # join target to x_vars
         x_vars_new = x_vars.join(target, rsuffix='_t')
