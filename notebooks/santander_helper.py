@@ -16,6 +16,7 @@ import xgboost as xgb
 from sklearn.preprocessing import LabelEncoder
 import copy
 import time
+import collections
 
 tqdm.tqdm.pandas()
 
@@ -239,9 +240,9 @@ def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
     print('Combine all products for each customer')
     # combination of target columns
     x_vars['target_combine'] = np.sum(x_vars[target_cols].values*
-        np.float_power(2, np.arange(-10, len(target_cols)-10)), axis=1, dtype=np.float64)
+        np.float_power(2, np.arange(0, len(target_cols))), axis=1, dtype=np.float64)
     # Load mean encoding data and merge with x_vars
-    target_mean_encoding = pd.read_hdf('../input/target_mean_encoding.hdf', 'target_mean_encoding')
+    target_mean_encoding = pd.read_hdf('../input/target_mean_encoding_2.hdf', 'target_mean_encoding')
     x_vars = x_vars.join(target_mean_encoding, on='target_combine')
 
     # number of purchased products in the previous month
