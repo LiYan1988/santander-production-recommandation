@@ -242,7 +242,6 @@ def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
         np.float_power(2, np.arange(-10, len(target_cols)-10)), axis=1, dtype=np.float64)
     # Load mean encoding data and merge with x_vars
     target_mean_encoding = pd.read_hdf('../input/target_mean_encoding.hdf', 'target_mean_encoding')
-    target_mean_encoding.set_index('target_combine', inplace=True)
     x_vars = x_vars.join(target_mean_encoding, on='target_combine')
 
     # number of purchased products in the previous month
