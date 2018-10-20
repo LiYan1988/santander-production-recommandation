@@ -83,6 +83,7 @@ def encoding(x):
     a, b = x.values[:-1, :], x.values[1:, :]
     c = a+b*2
     c = pd.DataFrame(c, index=x.index[0:-1], columns=x.columns)
+    
     return c
 
 def count_changes(dt):
@@ -109,6 +110,8 @@ def count_changes(dt):
     # count number of patterns
     print('Counting pattern...')
     dt_count = a.groupby('ncodpers').progress_apply(np.sum, axis=0)
+    
+    del group, dt_changes, a3, a2, a1, a0, a
     
     return dt_count
 
@@ -144,6 +147,9 @@ def count_pattern(month1, max_lag):
     pattern_count.drop('ncodpers', axis=1, inplace=True)
     pattern_count.fillna(0.0, inplace=True)
        
+    del dt, df, ncodpers_list
+    gc.collect()
+    
     return pattern_count
 
 def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
@@ -242,11 +248,15 @@ def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
     x_vars['target_combine'] = np.sum(x_vars[target_cols].values*
         np.float_power(2, np.arange(0, len(target_cols))), axis=1, dtype=np.float64)
     # Load mean encoding data and merge with x_vars
-    target_mean_encoding = pd.read_hdf('../input/target_mean_encoding_2.hdf', 'target_mean_encoding')
-    x_vars = x_vars.join(target_mean_encoding, on='target_combine')
+    # target_mean_encoding = pd.read_hdf('../input/target_mean_encoding_2.hdf', 'target_mean_encoding')
+    # x_vars = x_vars.join(target_mean_encoding[['target_count', 'target_indicator']], on='target_combine')
 
     # number of purchased products in the previous month
     x_vars['n_products'] = x_vars[target_cols].sum(axis=1)
+    
+    del (df1_tiprel_1mes, df2_tiprel_1mes, df1_ind_actividad_cliente, 
+        df2_ind_actividad_cliente, df2_target, df1_target, df2_ncodpers)
+    gc.collect()
 
     if pattern_flag:
         print('\nStart counting patterns:')
@@ -254,7 +264,10 @@ def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
         dp = count_pattern(month1, max_lag)
         x_vars = x_vars.join(dp)
         x_vars.loc[:, dp.columns] = x_vars.loc[:, dp.columns].fillna(-1)
-    
+        
+        del dp
+        gc.collect()
+        
     # return x_vars if target_flag is False
     if not target_flag:
         x_vars.drop('sample_order', axis=1, inplace=True) # drop sample_order
@@ -273,9 +286,13 @@ def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
         # set ncodpers as one column
         x_vars_new.reset_index(inplace=True, drop=False)
         x_vars.reset_index(inplace=True, drop=False)
-
+        var_cols = x_vars.columns.tolist()
+        
+        del x_vars
+        gc.collect()
+		
         # melt
-        x_vars_new = x_vars_new.melt(id_vars=x_vars.columns)
+        x_vars_new = x_vars_new.melt(id_vars=var_cols)
         # mapping from target_cols to index
         target_cols_mapping = {c+'_t': n for (n, c) in enumerate(target_cols)}
         # replace column name by index
@@ -289,7 +306,7 @@ def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
         # keep the order of rows as in the original data set
         x_vars_new.reset_index(drop=True, inplace=True)
 
-        var_cols = x_vars.columns.tolist()
+        
         var_cols.remove('sample_order')
         # variable
         x_vars = x_vars_new.loc[:, var_cols].copy()
