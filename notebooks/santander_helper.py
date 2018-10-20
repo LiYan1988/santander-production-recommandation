@@ -248,8 +248,8 @@ def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
     x_vars['target_combine'] = np.sum(x_vars[target_cols].values*
         np.float_power(2, np.arange(0, len(target_cols))), axis=1, dtype=np.float64)
     # Load mean encoding data and merge with x_vars
-    # target_mean_encoding = pd.read_hdf('../input/target_mean_encoding_2.hdf', 'target_mean_encoding')
-    # x_vars = x_vars.join(target_mean_encoding[['target_count', 'target_indicator']], on='target_combine')
+    target_mean_encoding = pd.read_hdf('../input/target_mean_encoding_2.hdf', 'target_mean_encoding')
+    x_vars = x_vars.join(target_mean_encoding, on='target_combine')
 
     # number of purchased products in the previous month
     x_vars['n_products'] = x_vars[target_cols].sum(axis=1)
@@ -292,6 +292,7 @@ def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
         gc.collect()
 		
         # melt
+        return x_vars_new
         x_vars_new = x_vars_new.melt(id_vars=var_cols)
         # mapping from target_cols to index
         target_cols_mapping = {c+'_t': n for (n, c) in enumerate(target_cols)}
@@ -469,3 +470,81 @@ def check_target(month1, month2, target_flag=True):
         target = x_vars_new.loc[:, 'variable'].copy()
 
         return x_vars, target, x_vars_new
+        
+        
+def create_train_test_2(month, max_lag=5, target_flag=True, pattern_flag=False):
+    '''Another method to create train and test data sets'''
+    
+    month2 = month # the second month
+    month1 = month_list[month_list.index(month2)-1] # the first month
+    
+    # Load customer product pair
+    customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
+    
+    # Load second month
+    df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
+    df2 = df2.loc[:, cat_cols]
+    df2 = df2.loc[df2.ncodpers.isin(customer_product_pair.loc[customer_product_pair.fecha_dato==month2].ncodpers.unique())]
+    
+    # Load first month
+    df1_0 = pd.read_hdf('../input/data_month_{}.hdf'.format(month1), 'data_month')
+    df1 = df1_0.loc[:, cat_cols+target_cols]
+    df1_target = df1_0.loc[:, ['ncodpers']+target_cols]
+    
+    # Merge first month product with second month customer information
+    df2 = df2.merge(df1_target, on='ncodpers', how='left')
+    df2.fillna(0.0, inplace=True)
+    
+    # Combination of ind_activadad_cliente
+    # second month ind_actividad_cliente
+    df2_copy = df2.loc[:, ['ncodpers', 'ind_actividad_cliente']].copy()
+    # first month ind_actividad_cliente
+    df1_copy = df1.loc[:, ['ncodpers', 'ind_actividad_cliente']].copy()
+    # merge two months
+    df2_copy = pd.merge(df2_copy, df1_copy, on='ncodpers', suffixes=('', '_prev'), how='left')
+    # fillna
+    df2_copy.fillna(2.0, inplace=True)
+    # combine 
+    df2_copy['ind_actvidad_client_combine'] = df2_copy.ind_actividad_cliente.values*3+df2_copy.ind_actividad_cliente_prev.values
+    # drop other columns
+    df2_copy.drop(['ind_actividad_cliente', 'ind_actividad_cliente_prev'], axis=1, inplace=True)
+    # merge result back to df2
+    df2 = df2.merge(df2_copy, how='left', left_on='ncodpers', right_on='ncodpers')
+    
+    # Combination of tiprel_1mes
+    # second month tiprel_1mes
+    df2_copy = df2.loc[:, ['ncodpers', 'tiprel_1mes']].copy()
+    # first month tiprel_1mes
+    df1_copy = df1.loc[:, ['ncodpers', 'tiprel_1mes']].copy()
+    # merge two months
+    df2_copy = pd.merge(df2_copy, df1_copy, on='ncodpers', suffixes=('', '_prev'), how='left')
+    # fillna
+    df2_copy.fillna(0.0, inplace=True)
+    # combine 
+    df2_copy['tiprel_1mes_combine'] = df2_copy.tiprel_1mes.values*6+df2_copy.tiprel_1mes_prev.values
+    # drop other columns
+    df2_copy.drop(['tiprel_1mes', 'tiprel_1mes_prev'], axis=1, inplace=True)
+    # merge result back to df2
+    df2 = df2.merge(df2_copy, how='left', left_on='ncodpers', right_on='ncodpers')    
+    
+    # Combine target
+    df2['target_combine'] = np.sum(df2[target_cols].values*
+        np.float_power(2, np.arange(0, len(target_cols))), axis=1, 
+        dtype=np.float64)
+    # Load mean encoding data
+    mean_encoding_result = pd.read_hdf('../input/mean_encoding_result_eda_4_21.hdf',
+    'mean_encoding_result')
+    # Merge with mean encoding result
+    df2 = df2.merge(mean_encoding_result, on='target_combine', how='left')
+    
+    # number of products in the first month
+    df2['n_products'] = df2[target_cols].sum(axis=1)
+    
+    cpp = customer_product_pair.loc[customer_product_pair.fecha_dato==month2, 
+        ['ncodpers', 'product']].copy()
+    df2 = pd.merge(df2, cpp, on='ncodpers', how='right')
+    
+    x_train = df2.iloc[:, :-1].copy()
+    y_train = df2.iloc[:, -1].copy()
+    
+    return x_train, y_train, df2
