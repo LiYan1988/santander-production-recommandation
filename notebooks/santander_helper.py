@@ -125,32 +125,40 @@ def count_pattern(month1, max_lag):
     (1, 1): 3
     '''
         
-    month_end = month_list.index(month1)
-    month_start = month_end-max_lag+1
+    if os.path.exists('../input/count_pattern_{}_{}.hdf'.format(month1, max_lag)):
     
-    # Create a DataFrame containing all the previous months up to the month_index month
-    df = []
-    for m in range(month_start, month_end+1):
-        df.append(pd.read_hdf('../input/data_month_{}.hdf'.format(month_list[m]), 'data_month'))
+        # directly load data if it exists
+        pattern_count = pd.read_hdf('../input/count_pattern_{}_{}.hdf', 'pattern_count')
+        return pattern_count
+        
+    else:
+        month_end = month_list.index(month1)
+        month_start = month_end-max_lag+1
+        
+        # Create a DataFrame containing all the previous months up to the month_index month
+        df = []
+        for m in range(month_start, month_end+1):
+            df.append(pd.read_hdf('../input/data_month_{}.hdf'.format(month_list[m]), 'data_month'))
 
-    ncodpers_list = df[-1].ncodpers.unique().tolist()
+        ncodpers_list = df[-1].ncodpers.unique().tolist()
 
-    df = pd.concat(df, ignore_index=True)
-    
-    # count patterns for customers with at least two months records
-    dt = count_changes(df)
-    
-    # create patterns for all customers, fillna with 0.0 if less than two months records
-    pattern_count = df.loc[df.fecha_dato==month_list[month_end], ['ncodpers']]
-    pattern_count.set_index('ncodpers', drop=False, inplace=True)
-    pattern_count = pattern_count.join(dt)
-    pattern_count.drop('ncodpers', axis=1, inplace=True)
-    pattern_count.fillna(0.0, inplace=True)
-       
-    del dt, df, ncodpers_list
-    gc.collect()
-    
-    return pattern_count
+        df = pd.concat(df, ignore_index=True)
+        
+        # count patterns for customers with at least two months records
+        dt = count_changes(df)
+        
+        # create patterns for all customers, fillna with 0.0 if less than two months records
+        pattern_count = df.loc[df.fecha_dato==month_list[month_end], ['ncodpers']]
+        pattern_count.set_index('ncodpers', drop=False, inplace=True)
+        pattern_count = pattern_count.join(dt)
+        pattern_count.drop('ncodpers', axis=1, inplace=True)
+        pattern_count.fillna(0.0, inplace=True)
+           
+        del dt, df, ncodpers_list
+        gc.collect()
+        
+        pattern_count.to_hdf('../input/count_pattern_{}_{}.hdf'.format(month1, max_lag), 'pattern_count')
+        return pattern_count
 
 def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
     '''Create train and test data for month'''
@@ -547,8 +555,24 @@ def create_train(month, max_lag=5, pattern_flag=False):
         ['ncodpers', 'product']].copy()
     df2 = pd.merge(df2, cpp, on='ncodpers', how='right')
     
-    x_train = df2.iloc[:, :-1].copy()
-    y_train = df2.iloc[:, -1].copy()
+    # number of zero indexes
+    zc = count_zeros(month1, max_lag)
+    df2 = df2.join(zc, on='ncodpers')
+    
+    if pattern_flag:
+        #print('\nStart counting patterns:')
+        # count patterns of historical products
+        dp = count_pattern_2(month1, max_lag)
+        df2 = df2.join(dp, on='ncodpers')
+        df2.loc[:, dp.columns] = df2.loc[:, dp.columns].fillna(0.0)
+        
+        del dp
+        gc.collect()
+    
+    cols = df2.columns.tolist()
+    cols.remove('product')
+    x_train = df2.loc[:, cols].copy()
+    y_train = df2.loc[:, 'product'].copy()
     
     return x_train, y_train
     
@@ -615,4 +639,118 @@ def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
     # number of products in the first month
     df2['n_products'] = df2[target_cols].sum(axis=1)
     
+    # number of zero indexes
+    zc = count_zeros(month1, max_lag)
+    df2 = df2.join(zc, on='ncodpers')
+    
+    if pattern_flag:
+        #print('\nStart counting patterns:')
+        # count patterns of historical products
+        dp = count_pattern_2(month1, max_lag)
+        df2 = df2.join(dp, on='ncodpers')
+        df2.loc[:, dp.columns] = df2.loc[:, dp.columns].fillna(0.0)
+        
+        del dp
+        gc.collect()
+    
     return df2
+    
+def count_pattern_2(month1, max_lag):
+    '''
+    Encoding the pattern in one product for one customer
+    (previous, this):
+    (0, 0): 0
+    (0, 1): 2
+    (1, 0): 1
+    (1, 1): 3
+    '''
+        
+    if os.path.exists('../input/count_pattern_{}_{}.hdf'.format(month1, max_lag)):
+    
+        # directly load data if it exists
+        pattern_count = pd.read_hdf('../input/count_pattern_{}_{}.hdf'.format(month1, max_lag), 'pattern_count')
+        return pattern_count
+        
+    else:
+        month_new = month_list.index(month1)+1 # the second month 
+        month_end = month_list.index(month1) # the first month
+        month_start = month_end-max_lag+1 # the first lagging month
+                
+        # Create a DataFrame containing all the previous months up to the month_index month
+        df = []
+        for m in range(month_start, month_end+1):
+            df.append(pd.read_hdf('../input/data_month_{}.hdf'.format(month_list[m]), 'data_month'))
+
+        # If this is a train/val month, only keep customers with new products in the second month,
+        # else, if this is a test month (2-16-06-28), we have to keep all the customers in the first month,
+        # since the second month products are unknown
+        if month_new<len(month_list)-1: # if this is not the last month in month_list
+            # Load customer product pair
+            customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
+            ncodpers_list = list(set(customer_product_pair.loc[customer_product_pair.fecha_dato==month_list[month_new], 'ncodpers'].values))
+        else:
+            ncodpers_list = df[-1].ncodpers.unique().tolist()
+            
+        df = pd.concat(df, ignore_index=True)
+        df = df.loc[df.ncodpers.isin(ncodpers_list), :]
+        
+        # count patterns for customers with at least two months records
+        dt = count_changes(df)
+        
+        # create patterns for all customers, fillna with 0.0 if less than two months records
+        pattern_count = df.loc[df.fecha_dato==month_list[month_end], ['ncodpers']]
+        pattern_count.set_index('ncodpers', drop=False, inplace=True)
+        pattern_count = pattern_count.join(dt)
+        pattern_count.drop('ncodpers', axis=1, inplace=True)
+        pattern_count.fillna(0.0, inplace=True)
+           
+        del dt, df, ncodpers_list
+        gc.collect()
+        
+        # save data: pattern count that ends in month1 and count backward max_lag months
+        pattern_count.to_hdf('../input/count_pattern_{}_{}.hdf'.format(month1, max_lag), 'pattern_count')
+        return pattern_count
+
+def count_zeros(month1, max_lag):
+    if os.path.exists('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag)):
+        df = pd.read_hdf('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag), 
+            'count_zeros')
+        
+        return df
+    else:
+        month_new = month_list.index(month1)+1
+        month_end = month_list.index(month1)
+        month_start = month_end-max_lag+1
+        
+        # Check if month_new is the last month
+        if month_new<len(month_list)-1:
+            # Customers with new products in month_new
+            customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
+            ncodpers_list = customer_product_pair.loc[customer_product_pair.fecha_dato==month_list[month_new], 
+                'ncodpers'].unique().tolist()
+
+        # Load data for all the lag related months
+        df = []
+        for m in range(month_start, month_end+1):
+            df.append(pd.read_hdf('../input/data_month_{}.hdf'.format(month_list[m]), 'data_month'))
+
+        # concatenate data
+        df = pd.concat(df, ignore_index=True)
+        df = df.loc[:, ['ncodpers', 'fecha_dato']+target_cols]
+        if month_new<len(month_list)-1:
+            # select customers if this is not test set
+            df = df.loc[df.ncodpers.isin(ncodpers_list), :]
+        # set ncodpers and fecha_dato as index
+        df.set_index(['ncodpers', 'fecha_dato'], inplace=True)
+        # unstack to make month as columns
+        df = df.unstack(level=-1, fill_value=0)
+
+        # count number of concatenating zeros before the second/current month
+        df = df.groupby(level=0, axis=1).progress_apply(lambda x: (1-x).iloc[:, ::-1].cummin(axis=1).sum(axis=1))
+        df.columns = [k+'_zc' for k in df.columns]
+        
+        gc.collect()
+        
+        df.to_hdf('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag), 'count_zeros')
+        
+        return df
