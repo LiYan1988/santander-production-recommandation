@@ -472,8 +472,8 @@ def check_target(month1, month2, target_flag=True):
         return x_vars, target, x_vars_new
         
         
-def create_train_test_2(month, max_lag=5, target_flag=True, pattern_flag=False):
-    '''Another method to create train and test data sets'''
+def create_train(month, max_lag=5, pattern_flag=False):
+    '''Another method to create train data sets'''
     
     month2 = month # the second month
     month1 = month_list[month_list.index(month2)-1] # the first month
@@ -540,6 +540,9 @@ def create_train_test_2(month, max_lag=5, target_flag=True, pattern_flag=False):
     # number of products in the first month
     df2['n_products'] = df2[target_cols].sum(axis=1)
     
+    # select (customer, product) pairs
+    # not all the products goes into train set, because each customer only purchases 
+    # a few products
     cpp = customer_product_pair.loc[customer_product_pair.fecha_dato==month2, 
         ['ncodpers', 'product']].copy()
     df2 = pd.merge(df2, cpp, on='ncodpers', how='right')
@@ -547,4 +550,69 @@ def create_train_test_2(month, max_lag=5, target_flag=True, pattern_flag=False):
     x_train = df2.iloc[:, :-1].copy()
     y_train = df2.iloc[:, -1].copy()
     
-    return x_train, y_train, df2
+    return x_train, y_train
+    
+def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
+    '''Another method to create train data sets'''
+    month2 = month # the second month
+    month1 = month_list[month_list.index(month2)-1] # the first month
+
+    # Load second month
+    df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
+    df2 = df2.loc[:, cat_cols]
+
+    # Load first month
+    df1_0 = pd.read_hdf('../input/data_month_{}.hdf'.format(month1), 'data_month')
+    df1 = df1_0.loc[:, cat_cols+target_cols] # keep cat_cols and target_cols
+    df1_target = df1_0.loc[:, ['ncodpers']+target_cols] # keep targets
+
+    # Merge first month product with second month customer information
+    df2 = df2.merge(df1_target, on='ncodpers', how='left')
+    df2.fillna(0.0, inplace=True)
+
+    # Combination of ind_activadad_cliente
+    # second month ind_actividad_cliente
+    df2_copy = df2.loc[:, ['ncodpers', 'ind_actividad_cliente']].copy()
+    # first month ind_actividad_cliente
+    df1_copy = df1.loc[:, ['ncodpers', 'ind_actividad_cliente']].copy()
+    # merge two months
+    df2_copy = pd.merge(df2_copy, df1_copy, on='ncodpers', suffixes=('', '_prev'), how='left')
+    # fillna
+    df2_copy.fillna(2.0, inplace=True)
+    # combine 
+    df2_copy['ind_actvidad_client_combine'] = df2_copy.ind_actividad_cliente.values*3+df2_copy.ind_actividad_cliente_prev.values
+    # drop other columns
+    df2_copy.drop(['ind_actividad_cliente', 'ind_actividad_cliente_prev'], axis=1, inplace=True)
+    # merge result back to df2
+    df2 = df2.merge(df2_copy, how='left', left_on='ncodpers', right_on='ncodpers')
+
+    # Combination of tiprel_1mes
+    # second month tiprel_1mes
+    df2_copy = df2.loc[:, ['ncodpers', 'tiprel_1mes']].copy()
+    # first month tiprel_1mes
+    df1_copy = df1.loc[:, ['ncodpers', 'tiprel_1mes']].copy()
+    # merge two months
+    df2_copy = pd.merge(df2_copy, df1_copy, on='ncodpers', suffixes=('', '_prev'), how='left')
+    # fillna
+    df2_copy.fillna(0.0, inplace=True)
+    # combine 
+    df2_copy['tiprel_1mes_combine'] = df2_copy.tiprel_1mes.values*6+df2_copy.tiprel_1mes_prev.values
+    # drop other columns
+    df2_copy.drop(['tiprel_1mes', 'tiprel_1mes_prev'], axis=1, inplace=True)
+    # merge result back to df2
+    df2 = df2.merge(df2_copy, how='left', left_on='ncodpers', right_on='ncodpers')    
+
+    # Combine target
+    df2['target_combine'] = np.sum(df2[target_cols].values*
+        np.float_power(2, np.arange(0, len(target_cols))), axis=1, 
+        dtype=np.float64)
+    # Load mean encoding data
+    mean_encoding_result = pd.read_hdf('../input/mean_encoding_result_eda_4_21.hdf',
+    'mean_encoding_result')
+    # Merge with mean encoding result
+    df2 = df2.merge(mean_encoding_result, on='target_combine', how='left')
+
+    # number of products in the first month
+    df2['n_products'] = df2[target_cols].sum(axis=1)
+    
+    return df2
