@@ -479,6 +479,8 @@ def check_target(month1, month2, target_flag=True):
 
         return x_vars, target, x_vars_new
         
+    
+############################# The following functions are more updated
         
 def create_train(month, max_lag=5, pattern_flag=False):
     '''Another method to create train data sets'''
