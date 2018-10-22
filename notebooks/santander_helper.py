@@ -479,6 +479,49 @@ def check_target(month1, month2, target_flag=True):
 
         return x_vars, target, x_vars_new
         
+def count_zeros(month1, max_lag):
+    if os.path.exists('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag)):
+        df = pd.read_hdf('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag), 
+            'count_zeros')
+        
+        return df
+    else:
+        month_new = month_list.index(month1)+1
+        month_end = month_list.index(month1)
+        month_start = month_end-max_lag+1
+        
+        # Check if month_new is the last month
+        if month_new<len(month_list)-1:
+            # Customers with new products in month_new
+            customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
+            ncodpers_list = customer_product_pair.loc[customer_product_pair.fecha_dato==month_list[month_new], 
+                'ncodpers'].unique().tolist()
+
+        # Load data for all the lag related months
+        df = []
+        for m in range(month_start, month_end+1):
+            df.append(pd.read_hdf('../input/data_month_{}.hdf'.format(month_list[m]), 'data_month'))
+
+        # concatenate data
+        df = pd.concat(df, ignore_index=True)
+        df = df.loc[:, ['ncodpers', 'fecha_dato']+target_cols]
+        if month_new<len(month_list)-1:
+            # select customers if this is not test set
+            df = df.loc[df.ncodpers.isin(ncodpers_list), :]
+        # set ncodpers and fecha_dato as index
+        df.set_index(['ncodpers', 'fecha_dato'], inplace=True)
+        # unstack to make month as columns
+        df = df.unstack(level=-1, fill_value=0)
+
+        # count number of concatenating zeros before the second/current month
+        df = df.groupby(level=0, axis=1).progress_apply(lambda x: (1-x).iloc[:, ::-1].cummin(axis=1).sum(axis=1))
+        df.columns = [k+'_zc' for k in df.columns]
+        
+        gc.collect()
+        
+        df.to_hdf('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag), 'count_zeros')
+        
+        return df
     
 ############################# The following functions are more updated
         
@@ -565,7 +608,7 @@ def create_train(month, max_lag=5, pattern_flag=False):
     df2 = pd.merge(df2, cpp, on='ncodpers', how='right')
     
     # number of zero indexes
-    zc = count_zeros(month1, max_lag)
+    zc = count_history(month1, max_lag)
     df2 = df2.join(zc, on='ncodpers')
     
     if pattern_flag:
@@ -660,8 +703,8 @@ def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
     # number of products in the first month
     df2['n_products'] = df2[target_cols].sum(axis=1)
     
-    # number of zero indexes
-    zc = count_zeros(month1, max_lag)
+    # number of history of data 
+    zc = count_history(month1, max_lag)
     df2 = df2.join(zc, on='ncodpers')
     
     if pattern_flag:
@@ -736,46 +779,134 @@ def count_pattern_2(month1, max_lag):
         pattern_count.to_hdf('../input/count_pattern_{}_{}.hdf'.format(month1, max_lag), 'pattern_count')
         return pattern_count
 
-def count_zeros(month1, max_lag):
-    if os.path.exists('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag)):
-        df = pd.read_hdf('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag), 
+        
+###################### count history ############################
+# distance to positive flank
+def dist_pos_flank(x):
+    x = x.values[:, ::-1]
+    x = np.hstack((x, np.ones((x.shape[0], 1)), np.zeros((x.shape[0], 1)) ))
+    x = np.diff(x, axis=1)
+    x = np.argmin(x, axis=1)
+    return x
+
+# distance to negative flank
+def dist_neg_flank(x):
+    x = x.values[:, ::-1]
+    x = np.hstack((x, np.zeros((x.shape[0], 1)), np.ones((x.shape[0], 1)) ))
+    x = np.diff(x, axis=1)
+    x = np.argmax(x, axis=1)
+    return x
+
+# Distance to the first 1
+def dist_first_one(x):
+    x = x.values
+    x = np.hstack( (x, np.ones((x.shape[0], 1)) ) )
+    x = x.shape[1]-2-np.argmax(x, axis=1)
+    return x
+    
+def dist_last_one(x):
+    x = 1-x
+    return x.iloc[:, ::-1].cummin(axis=1).sum(axis=1).values
+
+def count_history(month1, max_lag):
+    '''Statistics about historical data'''
+    
+    if os.path.exists('../input/history_count_{}_{}.hdf'.format(month1, max_lag)):
+        df = pd.read_hdf('../input/history_count_{}_{}.hdf'.format(month1, max_lag), 
             'count_zeros')
         
         return df
-    else:
-        month_new = month_list.index(month1)+1
-        month_end = month_list.index(month1)
-        month_start = month_end-max_lag+1
-        
-        # Check if month_new is the last month
-        if month_new<len(month_list)-1:
-            # Customers with new products in month_new
-            customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
-            ncodpers_list = customer_product_pair.loc[customer_product_pair.fecha_dato==month_list[month_new], 
-                'ncodpers'].unique().tolist()
+    
+    month_new = month_list.index(month1)+1
+    month_end = month_list.index(month1)
+    month_start = month_end-max_lag+1
+    
+    # Check if month_new is the last month
+    if month_new<len(month_list)-1:
+        # Customers with new products in month_new
+        customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
+        ncodpers_list = customer_product_pair.loc[customer_product_pair.fecha_dato==month_list[month_new], 
+            'ncodpers'].unique().tolist()
 
-        # Load data for all the lag related months
-        df = []
-        for m in range(month_start, month_end+1):
-            df.append(pd.read_hdf('../input/data_month_{}.hdf'.format(month_list[m]), 'data_month'))
+    # Load data for all the lag related months
+    df = []
+    for m in range(month_start, month_end+1):
+        df.append(pd.read_hdf('../input/data_month_{}.hdf'.format(month_list[m]), 'data_month'))
 
-        # concatenate data
-        df = pd.concat(df, ignore_index=True)
-        df = df.loc[:, ['ncodpers', 'fecha_dato']+target_cols]
-        if month_new<len(month_list)-1:
-            # select customers if this is not test set
-            df = df.loc[df.ncodpers.isin(ncodpers_list), :]
-        # set ncodpers and fecha_dato as index
-        df.set_index(['ncodpers', 'fecha_dato'], inplace=True)
-        # unstack to make month as columns
-        df = df.unstack(level=-1, fill_value=0)
+    # concatenate data
+    df = pd.concat(df, ignore_index=True)
 
-        # count number of concatenating zeros before the second/current month
-        df = df.groupby(level=0, axis=1).progress_apply(lambda x: (1-x).iloc[:, ::-1].cummin(axis=1).sum(axis=1))
-        df.columns = [k+'_zc' for k in df.columns]
-        
-        gc.collect()
-        
-        df.to_hdf('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag), 'count_zeros')
-        
-        return df
+    df = df.loc[:, ['fecha_dato']+cat_cols+target_cols]
+    if month_new<len(month_list)-1:
+        # select customers if this is not test set
+        df = df.loc[df.ncodpers.isin(ncodpers_list), :]
+
+    # set ncodpers and fecha_dato as index
+    df.set_index(['ncodpers', 'fecha_dato'], inplace=True)
+
+    # unstack to make month as columns
+    df = df.unstack(level=-1, fill_value=np.nan)
+
+    # Arithmetic /exponent weighted average of products for each (customer, product) pair 
+
+    # Group data by features
+    group0 = df.fillna(0.0).groupby(axis=1, level=0)
+
+    # Average of products for each (customer, product) pair
+    mean_product = pd.DataFrame()
+    mean_product['ncodpers'] = df.index.tolist() # Note: orders of ncodpers in df and ncodpers_list are different! 
+    for k in target_cols:
+        mean_product[k+'_lag_mean'] = group0.get_group(k).mean(axis=1).values
+
+    mean_product.set_index('ncodpers', inplace=True)
+
+    # Exponent average of products for each (customer, product) pair
+    mean_exp_product = pd.DataFrame()
+    mean_exp_product['ncodpers'] = df.index.tolist() # Note: orders of ncodpers in df and ncodpers_list are different! 
+    mean_exp_alpha1 = 0.1
+    mean_exp_weight1 = np.float_power(1-mean_exp_alpha1, np.arange(0, max_lag))
+    mean_exp_weight1 = mean_exp_weight1[::-1]/np.sum(mean_exp_weight1)
+    mean_exp_alpha2 = 0.5
+    mean_exp_weight2 = np.float_power(1-mean_exp_alpha2, np.arange(0, max_lag))
+    mean_exp_weight2 = mean_exp_weight2[::-1]/np.sum(mean_exp_weight2)
+    for k in target_cols:
+        mean_exp_product[k+'_lag_exp_mean1'] = np.average(group0.get_group(k).values, axis=1, weights=mean_exp_weight1) #group0.get_group(k).apply(np.average, axis=1, weights=mean_exp_weight1).values
+        mean_exp_product[k+'_lag_exp_mean2'] = np.average(group0.get_group(k).values, axis=1, weights=mean_exp_weight2) # group0.get_group(k).apply(np.average, axis=1, weights=mean_exp_weight2).values
+
+    mean_exp_product.set_index('ncodpers', inplace=True)
+
+    distance_positive_flank = pd.DataFrame()
+    distance_positive_flank['ncodpers'] = df.index.tolist()
+    for k in target_cols:
+        distance_positive_flank[k+'_dist_pos_flank'] = dist_pos_flank(group0.get_group(k))
+
+    distance_positive_flank.set_index('ncodpers', inplace=True)
+
+    distance_negative_flank = pd.DataFrame()
+    distance_negative_flank['ncodpers'] = df.index.tolist()
+    for k in target_cols:
+        distance_negative_flank[k+'_dist_neg_flank'] = dist_neg_flank(group0.get_group(k))
+
+    distance_negative_flank.set_index('ncodpers', inplace=True)
+
+    distance_first_one = pd.DataFrame()
+    distance_first_one['ncodpers'] = df.index.tolist()
+    for k in target_cols:
+        distance_first_one[k+'_dist_first_one'] = dist_first_one(group0.get_group(k))
+
+    distance_first_one.set_index('ncodpers', inplace=True)
+
+    # count number of concatenating zeros before the second/current month
+    distance_last_one = pd.DataFrame()
+    distance_last_one['ncodpers'] = df.index.tolist()
+    for k in target_cols:
+        distance_last_one[k+'_dist_last_one'] = dist_last_one(group0.get_group(k))
+
+    distance_last_one.set_index('ncodpers', inplace=True)
+
+    history = distance_last_one.join((distance_first_one, distance_negative_flank, 
+        distance_positive_flank, mean_exp_product, mean_product))
+    
+    history.to_hdf('../input/history_count_{}_{}.hdf'.format(month1, max_lag), 'count_zeros')
+    
+    return history
