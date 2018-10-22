@@ -483,6 +483,13 @@ def check_target(month1, month2, target_flag=True):
 def create_train(month, max_lag=5, pattern_flag=False):
     '''Another method to create train data sets'''
     
+    # First check if the data is saved.
+    if os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
+        x_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
+        y_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
+        
+        return x_train, y_train
+    
     month2 = month # the second month
     month1 = month_list[month_list.index(month2)-1] # the first month
     
@@ -574,10 +581,22 @@ def create_train(month, max_lag=5, pattern_flag=False):
     x_train = df2.loc[:, cols].copy()
     y_train = df2.loc[:, 'product'].copy()
     
+    # Save data if it does not exist
+    if not os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
+        x_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
+        y_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
+    
     return x_train, y_train
     
 def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
     '''Another method to create train data sets'''
+    
+    # First check if the data is saved.
+    if os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
+        x_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
+        
+        return x_train
+    
     month2 = month # the second month
     month1 = month_list[month_list.index(month2)-1] # the first month
 
@@ -652,6 +671,10 @@ def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
         
         del dp
         gc.collect()
+    
+    # Save data if it does not exist
+    if not os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
+        df2.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
     
     return df2
     
