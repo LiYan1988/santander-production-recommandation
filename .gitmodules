@@ -1,3 +1,6 @@
 [submodule "2nd-solution"]
 	path = 2nd-solution
 	url = https://github.com/ttvand/Santander-Product-Recommendation.git
+[submodule "8th-solution"]
+	path = 8th-solution
+	url = https://github.com/yaxen/santander-product-recommendation-8th-place.git
