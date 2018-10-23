@@ -1,0 +1,3 @@
+[submodule "2nd-solution"]
+	path = 2nd-solution
+	url = https://github.com/ttvand/Santander-Product-Recommendation.git
