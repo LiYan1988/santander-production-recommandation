@@ -913,36 +913,107 @@ def count_history(month1, max_lag):
     
     return history
     
+############################## CV ######################################
+def cv_xgb_skfrm(params, x_train, y_train, num_boost_round=3, n_splits=3, 
+                           n_repeats=2, random_state=0, verbose_eval=False):
+    '''
+    CV of xgb using Stratified KFold Repeated Models (SKFRM)
+    verbose_eval is the same as in xgb.train
+    '''
+    cv_results = {}
+    clfs = {}
+    running_time = {}
+    
+    eval_metric = params['eval_metric']
+    
+    np.random.seed(random_state)
+    skf = StratifiedKFold(n_splits=n_splits, random_state=np.random.randint(10**6), shuffle=True)
+    
+    for m in range(n_repeats):
+        for n, (train_index, val_index) in enumerate(skf.split(x_train, y_train)):
+            
+            start_time = time.time()
+            
+            # Construct DMatrix
+            dtrain = xgb.DMatrix(x_train.iloc[train_index], label=y_train.iloc[train_index])
+            dval = xgb.DMatrix(x_train.iloc[val_index], label=y_train.iloc[val_index])
+            
+            # Placeholder for evals_result
+            cv_results[m, n] = {}
+            params['seed'] = np.random.randint(10**6)
+            clfs[m, n] = xgb.train(params, dtrain, num_boost_round=num_boost_round,
+                                   evals=[(dtrain, 'train'), (dval, 'val')], 
+                                   maximize=True, early_stopping_rounds=None, 
+                                   evals_result=cv_results[m, n], verbose_eval=verbose_eval)
+        
+            running_time[m, n] = time.time() - start_time
+            
+            print('Repeat {}, split {}, validate score = {:.3f}, running time = {:.3f} min'.format(m, n, 
+                cv_results[m, n]['val'][eval_metric][-1], running_time[m, n]/60))
+        
+    # Post-process cv_results
+    cv_results_final = {}
+    for m in range(n_repeats):
+        for n in range(n_splits):
+            cv_results_final['train', m, n] = cv_results[m, n]['train'][eval_metric]
+            cv_results_final['val', m, n] = cv_results[m, n]['val'][eval_metric]
+    
+    df = pd.DataFrame.from_dict(cv_results_final)
+    df.index.name = 'iteration'
+    df.columns.names = ['dataset', 'repeat', 'split']
 
-def apk(actual, predicted, k=7, default=0.0):
-    if predicted.shape[0]>k:
-        predicted = predicted[:k]
-    score = 0.0
-    num_hits = 0.0
+    print('Score mean = {:.3f}, std = {:.3f}'.format(df['val'].iloc[-1].mean(), df['val'].iloc[-1].std()))
     
-    print(predicted)
-    
-    for i,p in enumerate(predicted):
-        if p in actual and p not in predicted[:i]:
-            num_hits += 1.0
-            score += num_hits / (i+1.0)
+    return df, clfs, running_time
 
-    if actual.shape[0]==0:
-        return default
+def plot_cv_results(df, font_size=22):
+    '''plot CV results stored in df'''
+    train_mean = df.mean(axis=1, level=0)['train']
+    val_mean = df.mean(axis=1, level=0)['val']
+    train_std = df.std(axis=1, level=0)['train']*10
+    val_std = df.std(axis=1, level=0)['val']*10
 
-    return score / min(actual.shape[0], k)
+    plt.figure(figsize=(16, 9))
+    plt.rcParams.update({'font.size': 22})
+    plt.plot(df.index, train_mean, label='train')
+    plt.plot(df.index, val_mean, label='validate')
+    plt.fill_between(df.index, train_mean-train_std, train_mean+train_std, alpha=0.5)
+    plt.fill_between(df.index, val_mean-val_std, val_mean+val_std, alpha=0.5)
+    plt.grid()
+    plt.legend()
+    
+###########################################################################
+    
+############################## CV #########################################
+# def apk(actual, predicted, k=7, default=0.0):
+    # if predicted.size>k:
+        # predicted = predicted[:k]
+    # score = 0.0
+    # num_hits = 0.0
+    
+    # for i,p in enumerate(predicted):
+        # if p in actual and p not in predicted[:i]:
+            # num_hits += 1.0
+            # score += num_hits / (i+1.0)
 
-def mapk(actual, predicted, k=7, default=0.0):
+    # if actual.size==0:
+        # return default
+
+    # return score / min(actual.size, k)
+
+# def mapk(actual, predicted, k=7, default=0.0):
     
-    n = actual.shape[0]
-    apks = np.zeros(n)
-    for i in range(actual.shape[0]):
-        apks[i] = apk(actual[i], predicted[i], k, default)
-    mean_apk = np.mean(apks)
+    # n = actual.shape[0]
+    # apks = np.zeros(n)
+    # for i in range(n):
+        # apks[i] = apk(actual[i], predicted[i], k, default)
+    # mean_apk = np.mean(apks)
     
-    return mean_apk
+    # return mean_apk
     
-def eval_map(y_prob, dtrain):
-    y_true = dtrain.get_label()
-    score = mapk(y_true, y_prob)
-    return 'MAP@7', score
+# def eval_map(y_prob, dtrain):
+    # y_true = dtrain.get_label()
+    # score = mapk(y_true, y_prob)
+    # return 'MAP@7', score
+    
+###########################################################################
