@@ -18,6 +18,7 @@ from sklearn.model_selection import cross_validate, cross_val_predict, Stratifie
 import copy
 import time
 import collections
+from numba import jit
 
 tqdm.tqdm.pandas()
 
@@ -911,3 +912,37 @@ def count_history(month1, max_lag):
     history.to_hdf('../input/history_count_{}_{}.hdf'.format(month1, max_lag), 'count_zeros')
     
     return history
+    
+
+def apk(actual, predicted, k=7, default=0.0):
+    if predicted.shape[0]>k:
+        predicted = predicted[:k]
+    score = 0.0
+    num_hits = 0.0
+    
+    print(predicted)
+    
+    for i,p in enumerate(predicted):
+        if p in actual and p not in predicted[:i]:
+            num_hits += 1.0
+            score += num_hits / (i+1.0)
+
+    if actual.shape[0]==0:
+        return default
+
+    return score / min(actual.shape[0], k)
+
+def mapk(actual, predicted, k=7, default=0.0):
+    
+    n = actual.shape[0]
+    apks = np.zeros(n)
+    for i in range(actual.shape[0]):
+        apks[i] = apk(actual[i], predicted[i], k, default)
+    mean_apk = np.mean(apks)
+    
+    return mean_apk
+    
+def eval_map(y_prob, dtrain):
+    y_true = dtrain.get_label()
+    score = mapk(y_true, y_prob)
+    return 'MAP@7', score
