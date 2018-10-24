@@ -635,11 +635,11 @@ def create_train(month, max_lag=5, pattern_flag=False):
     weight = calculate_weight(x_train, y_train)
     
     # Save data if it does not exist
-    if not os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
-        x_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
-        y_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
-        weight.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'weight')
-    
+#    if not os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
+    x_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
+    y_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
+    weight.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'weight')
+
     
     return x_train, y_train, weight
     
@@ -741,6 +741,8 @@ def calculate_weight(x_train, y_train):
     x_train_ncodpers = pd.DataFrame(x_train_ncodpers.groupby('ncodpers')['n_target'].count())
     x_train_ncodpers['xgb_weight_1'] = 1.0/x_train_ncodpers['n_target']
     x_train_ncodpers['xgb_weight_2'] = np.exp(1.0/x_train_ncodpers['n_target']-1)
+    x_train_ncodpers['xgb_weight_3'] = 1.0
+    x_train_ncodpers['xgb_weight_4'] = x_train_ncodpers['n_target'].apply(lambda x: 1/sum(1/k for k in range(1, 1+x)))
     
     xgb_weight = pd.DataFrame(x_train.loc[:, 'ncodpers'].copy()).join(x_train_ncodpers, on='ncodpers')
     xgb_weight.drop('n_target', axis=1, inplace=True)
@@ -1033,7 +1035,7 @@ def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=
         dtrain.set_weight(weight_train.values[:, weight_index])
         dval.set_weight(weight_val.values[:, weight_index])
         
-        print('Start {} weight'.format('arithmetic' if weight_index==0 else 'exponential'))
+        print('Start weight index {}'.format(weight_index))
         print('#'*50)
         
         for n in range(n_repeat):
