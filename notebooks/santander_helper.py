@@ -1012,6 +1012,7 @@ def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=
                     lag_train=5, lag_val=5, weight_set=(1), verbose_eval=True):
     '''Train on one month and validate on another'''
     history = {}
+    model_dict = {}
 
     x_train, y_train, weight_train = create_train(month_train, max_lag=lag_train, pattern_flag=True)
     x_val, y_val, weight_val = create_train(month_val, max_lag=lag_val, pattern_flag=True)
@@ -1027,6 +1028,7 @@ def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=
 
     for weight_index in weight_set:
         history[weight_index] = {}
+        model_dict[weight_index] = []
 
         dtrain.set_weight(weight_train.values[:, weight_index])
         dval.set_weight(weight_val.values[:, weight_index])
@@ -1044,6 +1046,7 @@ def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=
             model = xgb.train(param, dtrain, num_rounds, evals=[(dtrain, 'train'), (dval, 'val')], 
                 verbose_eval=verbose_eval, feval=eval_map, evals_result=history[weight_index][n], 
                 gt=ground_truth, ts=data_hash)
+            model_dict[weight_index].append(model)
             time_end = time.time()
             print('Validate logloss = {:.5f}, MAP@7 = {:.5f}, time = {:.2f} min'.format(
                 history[weight_index][n]['val']['mlogloss'][-1], 
@@ -1060,7 +1063,7 @@ def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=
     history = pd.DataFrame(history)
     history.columns.names = ['weight_index', 'repetition', 'data_set', 'metrics']
         
-    return history
+    return history, model_dict
 ###########################################################################
     
 ############################## MAP #########################################
