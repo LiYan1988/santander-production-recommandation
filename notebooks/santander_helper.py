@@ -1067,10 +1067,12 @@ def apk(actual, predicted, k=7, default=0.0):
 
 @jit
 def eval_map(y_prob, dtrain, gt={}, ts={}):
-    if dtrain.get_label().size==ts['train']:
+    '''Evaluate MAP@7 for train and validation sets'''
+    # Check which set is it?
+    if hash(dtrain.get_label().tostring())==ts['train']:
         gti = gt['train']['index']
         gtv = gt['train']['value']
-    elif dtrain.get_label().size==ts['val']:
+    elif hash(dtrain.get_label().tostring())==ts['val']:
         gti = gt['val']['index']
         gtv = gt['val']['value']
     
