@@ -1066,24 +1066,13 @@ def apk(actual, predicted, k=7, default=0.0):
     return score / min(actual.size, k)
 
 @jit
-def mapk(actual, predicted, k=7, default=0.0):
-    
-    n = actual.shape[0]
-    apks = np.zeros(n)
-    for i in range(n):
-        apks[i] = apk(actual[i], predicted[i], k, default)
-    mean_apk = np.mean(apks)
-    
-    return mean_apk
-    
-@jit
-def eval_map(y_prob, dtrain):
-    if dtrain.get_label().size==y_train.size:
-        gti = gt_train['index']
-        gtv = gt_train['value']
-    elif dtrain.get_label().size==y_val.size:
-        gti = gt_val['index']
-        gtv = gt_val['value']
+def eval_map(y_prob, dtrain, gt={}, ts={}):
+    if dtrain.get_label().size==ts['train']:
+        gti = gt['train']['index']
+        gtv = gt['train']['value']
+    elif dtrain.get_label().size==ts['val']:
+        gti = gt['val']['index']
+        gtv = gt['val']['value']
     
     n = len(gti)
     apks = np.zeros(n)
@@ -1096,7 +1085,7 @@ def eval_map(y_prob, dtrain):
 
     return 'MAP@7', score
     
-def prep_map(x_train, y_train, file_name):
+def prep_map(x_train, y_train):
     '''Prepare ground truth value and index for MAP evaluation, and save it.'''
     # Ground truth value: MAP needs to know the products bought by each customers
     gtv = pd.concat((pd.DataFrame(x_train.loc[:, 'ncodpers'].copy()), y_train), axis=1, ignore_index=True)
