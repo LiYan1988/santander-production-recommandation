@@ -1007,6 +1007,60 @@ def plot_cv_results(df, font_size=22):
     plt.grid()
     plt.legend()
     
+    
+def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=0,
+                    lag_train=5, lag_val=5, weight_set=(1), verbose_eval=True):
+    '''Train on one month and validate on another'''
+    history = {}
+
+    x_train, y_train, weight_train = create_train(month_train, max_lag=lag_train, pattern_flag=True)
+    x_val, y_val, weight_val = create_train(month_val, max_lag=lag_val, pattern_flag=True)
+
+    gt_train = prep_map(x_train, y_train)
+    gt_val = prep_map(x_val, y_val)
+
+    dtrain = xgb.DMatrix(x_train, y_train)
+    dval = xgb.DMatrix(x_val, y_val)
+
+    ground_truth = {'train': gt_train, 'val': gt_val}
+    data_hash = {'train': hash(dtrain.get_label().tostring()), 'val': hash(dval.get_label().tostring())}
+
+    for weight_index in weight_set:
+        history[weight_index] = {}
+
+        dtrain.set_weight(weight_train.values[:, weight_index])
+        dval.set_weight(weight_val.values[:, weight_index])
+        
+        print('Start {} weight'.format('arithmetic' if weight_index==0 else 'exponential'))
+        print('#'*50)
+        
+        for n in range(n_repeat):
+            history[weight_index][n] = {}
+            
+            param['seed'] = np.random.randint(10**6)
+            
+            time_start = time.time()
+            print('Train with weight {}, repetition {} of {}'.format(weight_index, n, n_repeat))
+            model = xgb.train(param, dtrain, num_rounds, evals=[(dtrain, 'train'), (dval, 'val')], 
+                verbose_eval=verbose_eval, feval=eval_map, evals_result=history[weight_index][n], 
+                gt=ground_truth, ts=data_hash)
+            time_end = time.time()
+            print('Validate logloss = {:.5f}, MAP@7 = {:.5f}, time = {:.2f} min'.format(
+                history[weight_index][n]['val']['mlogloss'][-1], 
+                history[weight_index][n]['val']['MAP@7'][-1], (time_end-time_start)/60))
+            print('-'*50)
+            print('')
+        print('')
+
+    history = {(w, n, d, m): history[w][n][d][m] 
+               for w in weight_set 
+               for n in range(n_repeat)
+               for d in ['train', 'val'] 
+               for m in ['mlogloss', 'MAP@7']}
+    history = pd.DataFrame(history)
+    history.columns.names = ['weight_index', 'repetition', 'data_set', 'metrics']
+        
+    return history
 ###########################################################################
     
 ############################## MAP #########################################
