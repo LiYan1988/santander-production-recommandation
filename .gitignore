@@ -3,3 +3,4 @@ input/*
 *.jar
 *.csv
 *.csv*
+.idea/*
