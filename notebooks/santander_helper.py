@@ -1011,7 +1011,9 @@ def plot_cv_results(df, font_size=22):
     
 ############################## MAP #########################################
 # This part implements a hacky way of evaluating MAP during xgboost training.
-    
+# This method is suitable when training on one month and validate on another 
+# month, since ncodpers is the key in ground truth dictionaries.
+
 # The procedure of MAP evaluation in train is:
 # 1. create train and validation sets, their names must be x_train, y_train, 
 #   and x_val, y_val
