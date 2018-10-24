@@ -19,6 +19,7 @@ import copy
 import time
 import collections
 from numba import jit
+import pickle
 
 tqdm.tqdm.pandas()
 
@@ -531,11 +532,15 @@ def create_train(month, max_lag=5, pattern_flag=False):
     '''Another method to create train data sets'''
     
     # First check if the data is saved.
-    if os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
-        x_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
-        y_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
-        
-        return x_train, y_train
+    try:
+        if os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
+            x_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
+            y_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
+            weight = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'weight')
+            
+            return x_train, y_train, weight
+    except:
+        pass
     
     month2 = month # the second month
     month1 = month_list[month_list.index(month2)-1] # the first month
@@ -627,13 +632,16 @@ def create_train(month, max_lag=5, pattern_flag=False):
     cols.remove('product')
     x_train = df2.loc[:, cols].copy()
     y_train = df2.loc[:, 'product'].copy()
+    weight = calculate_weight(x_train, y_train)
     
     # Save data if it does not exist
     if not os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
         x_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
         y_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
+        weight.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'weight')
     
-    return x_train, y_train
+    
+    return x_train, y_train, weight
     
 def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
     '''Another method to create train data sets'''
@@ -724,6 +732,23 @@ def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
         df2.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
     
     return df2
+
+################## calculate weights for train and validation sets ############
+def calculate_weight(x_train, y_train):
+    '''Calculate weights for xgboost'''
+    x_train_ncodpers = pd.concat((x_train.loc[:, 'ncodpers'], y_train), axis=1, ignore_index=True)
+    x_train_ncodpers.columns = ['ncodpers', 'n_target']
+    x_train_ncodpers = pd.DataFrame(x_train_ncodpers.groupby('ncodpers')['n_target'].count())
+    x_train_ncodpers['xgb_weight_1'] = 1.0/x_train_ncodpers['n_target']
+    x_train_ncodpers['xgb_weight_2'] = np.exp(1.0/x_train_ncodpers['n_target']-1)
+    
+    xgb_weight = pd.DataFrame(x_train.loc[:, 'ncodpers'].copy()).join(x_train_ncodpers, on='ncodpers')
+    xgb_weight.drop('n_target', axis=1, inplace=True)
+    xgb_weight = xgb_weight.iloc[:, 1:].copy()
+    
+    return xgb_weight
+
+############################ count pattern 2 ##################################
     
 def count_pattern_2(month1, max_lag):
     '''
@@ -984,36 +1009,112 @@ def plot_cv_results(df, font_size=22):
     
 ###########################################################################
     
-############################## CV #########################################
-# def apk(actual, predicted, k=7, default=0.0):
-    # if predicted.size>k:
-        # predicted = predicted[:k]
-    # score = 0.0
-    # num_hits = 0.0
+############################## MAP #########################################
+# This part implements a hacky way of evaluating MAP during xgboost training.
     
-    # for i,p in enumerate(predicted):
-        # if p in actual and p not in predicted[:i]:
-            # num_hits += 1.0
-            # score += num_hits / (i+1.0)
+# The procedure of MAP evaluation in train is:
+# 1. create train and validation sets, their names must be x_train, y_train, 
+#   and x_val, y_val
+# 2. create ground truth value and index for both train and validation sets
+# 3. run xgboost train
+    
+# Example code:
+# =============================================================================
+# #x_train, y_train, weight_train = create_train('2015-06-28', pattern_flag=True)
+# #x_val, y_val, weight_val = create_train('2016-05-28', pattern_flag=True)
+# #
+# #dtrain = xgb.DMatrix(x_train, y_train, weight=weight_train)
+# #dval = xgb.DMatrix(x_val, y_val, weight=weight_val)
+# #
+# #gt_train = prep_map(x_train, y_train)
+# #gt_val = prep_map(x_val, y_val)
+# #
+# #param = {'objective': 'multi:softprob', 
+# #         'eta': 0.05, 
+# #         'max_depth': 4, 
+# #         'silent': 1, 
+# #         'num_class': len(target_cols),
+# #         'eval_metric': 'mlogloss',
+# #         'min_child_weight': 1,
+# #         'subsample': 0.7,
+# #         'colsample_bytree': 0.7,
+# #         'seed': 0}
+# #num_rounds = 200
+# #
+# #model = xgb.train(param, dtrain, num_rounds, 
+# #   evals=[(dtrain, 'train'), (dval, 'dval')], 
+# #   verbose_eval=True, feval=eval_map)
+# =============================================================================
 
-    # if actual.size==0:
-        # return default
+@jit
+def apk(actual, predicted, k=7, default=0.0):
+    if predicted.size>k:
+        predicted = predicted[:k]
+    score = 0.0
+    num_hits = 0.0
+    
+    for i,p in enumerate(predicted):
+        if p in actual and p not in predicted[:i]:
+            num_hits += 1.0
+            score += num_hits / (i+1.0)
 
-    # return score / min(actual.size, k)
+    if actual.size==0:
+        return default
 
-# def mapk(actual, predicted, k=7, default=0.0):
+    return score / min(actual.size, k)
+
+@jit
+def mapk(actual, predicted, k=7, default=0.0):
     
-    # n = actual.shape[0]
-    # apks = np.zeros(n)
-    # for i in range(n):
-        # apks[i] = apk(actual[i], predicted[i], k, default)
-    # mean_apk = np.mean(apks)
+    n = actual.shape[0]
+    apks = np.zeros(n)
+    for i in range(n):
+        apks[i] = apk(actual[i], predicted[i], k, default)
+    mean_apk = np.mean(apks)
     
-    # return mean_apk
+    return mean_apk
     
-# def eval_map(y_prob, dtrain):
-    # y_true = dtrain.get_label()
-    # score = mapk(y_true, y_prob)
-    # return 'MAP@7', score
+@jit
+def eval_map(y_prob, dtrain):
+    if dtrain.get_label().size==y_train.size:
+        gti = gt_train['index']
+        gtv = gt_train['value']
+    elif dtrain.get_label().size==y_val.size:
+        gti = gt_val['index']
+        gtv = gt_val['value']
     
+    n = len(gti)
+    apks = np.zeros(n)
+    y_pred = {}
+    for i, (cust_id, idx) in enumerate(gti.items()):
+        tmp = np.mean(y_prob[idx, :], axis=0)
+        y_pred[cust_id] = np.argsort(tmp)[:-8:-1]
+        apks[i] = apk(gtv[cust_id], y_pred[cust_id])
+    score = np.mean(apks)
+
+    return 'MAP@7', score
+    
+def prep_map(x_train, y_train, file_name):
+    '''Prepare ground truth value and index for MAP evaluation, and save it.'''
+    # Ground truth value: MAP needs to know the products bought by each customers
+    gtv = pd.concat((pd.DataFrame(x_train.loc[:, 'ncodpers'].copy()), y_train), axis=1, ignore_index=True)
+    gtv.columns = ['ncodpers', 'target']
+    gtv = gtv.groupby('ncodpers')['target'].apply(lambda x: x.values).to_dict()
+    # Ground truth index: MAP needs to know for each customer which rows are its corresponding data
+    gti = pd.DataFrame(x_train.loc[:, 'ncodpers']).reset_index()
+    gti = gti.groupby('ncodpers')['index'].apply(lambda x: x.values).to_dict()
+    
+    gt = {'value': gtv, 'index': gti}
+    
+    return gt
 ###########################################################################
+    
+############################### pickle ########################################
+def save_pickle(file_name, obj ):
+    with open(file_name, 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+def load_pickle(file_name ):
+    with open(file_name, 'rb') as f:
+        return pickle.load(f)
+###############################################################################
