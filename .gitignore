@@ -4,3 +4,4 @@ input/*
 *.csv
 *.csv*
 .idea/*
+*.pickle
