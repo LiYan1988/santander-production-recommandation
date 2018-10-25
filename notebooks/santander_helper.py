@@ -20,6 +20,7 @@ import time
 import collections
 from numba import jit
 import pickle
+import itertools
 
 tqdm.tqdm.pandas()
 
@@ -743,6 +744,12 @@ def calculate_weight(x_train, y_train):
     x_train_ncodpers['xgb_weight_2'] = np.exp(1.0/x_train_ncodpers['n_target']-1)
     x_train_ncodpers['xgb_weight_3'] = 1.0
     x_train_ncodpers['xgb_weight_4'] = x_train_ncodpers['n_target'].apply(lambda x: 1/sum(1/k for k in range(1, 1+x)))
+    x_train_ncodpers['xgb_weight_5'] = np.exp(1.3/x_train_ncodpers['n_target']-1.3)
+    x_train_ncodpers['xgb_weight_6'] = np.exp(1.2/x_train_ncodpers['n_target']-1.2)
+    x_train_ncodpers['xgb_weight_7'] = np.exp(1.1/x_train_ncodpers['n_target']-1.1)
+    x_train_ncodpers['xgb_weight_8'] = np.exp(0.9/x_train_ncodpers['n_target']-0.9)
+    x_train_ncodpers['xgb_weight_9'] = np.exp(0.8/x_train_ncodpers['n_target']-0.8)
+    x_train_ncodpers['xgb_weight_10'] = np.exp(0.7/x_train_ncodpers['n_target']-0.7)
     
     xgb_weight = pd.DataFrame(x_train.loc[:, 'ncodpers'].copy()).join(x_train_ncodpers, on='ncodpers')
     xgb_weight.drop('n_target', axis=1, inplace=True)
@@ -810,7 +817,7 @@ def count_pattern_2(month1, max_lag):
 
         
 ###################### count history ############################
-# distance to positive flank
+# Distance to the last positive flank
 def dist_pos_flank(x):
     x = x.values[:, ::-1]
     x = np.hstack((x, np.ones((x.shape[0], 1)), np.zeros((x.shape[0], 1)) ))
@@ -818,11 +825,27 @@ def dist_pos_flank(x):
     x = np.argmin(x, axis=1)
     return x
 
-# distance to negative flank
+# Distance to the first positive flank
+def dist_pos_flank_first(x):
+    x = x.values[:, ::-1]
+    x = np.hstack(( np.ones((x.shape[0], 1)), np.zeros((x.shape[0], 1)), x ))
+    x = np.diff(x, axis=1)[:, ::-1]
+    x = np.argmin(x, axis=1)
+    return x
+
+# Distance to the last negative flank
 def dist_neg_flank(x):
     x = x.values[:, ::-1]
     x = np.hstack((x, np.zeros((x.shape[0], 1)), np.ones((x.shape[0], 1)) ))
     x = np.diff(x, axis=1)
+    x = np.argmax(x, axis=1)
+    return x
+
+# Distance to the first negative flank
+def dist_neg_flank_first(x):
+    x = x.values[:, ::-1]
+    x = np.hstack(( np.zeros((x.shape[0], 1)), np.ones((x.shape[0], 1)), x ))
+    x = np.diff(x, axis=1)[:, ::-1]
     x = np.argmax(x, axis=1)
     return x
 
@@ -833,9 +856,28 @@ def dist_first_one(x):
     x = x.shape[1]-2-np.argmax(x, axis=1)
     return x
     
+# Distance to the last 1
 def dist_last_one(x):
     x = 1-x
     return x.iloc[:, ::-1].cummin(axis=1).sum(axis=1).values
+
+def valid_active_month(x, month1):
+    '''Calculate the first valid month for each customer, x is the whole unstacked DataFrame'''
+    # Valid: the records are not NAN
+    # Active: buys any product
+    
+    # Use all the target features to determine if a customer is valid or active
+    valid_active = x[target_cols].isnull().sum(axis=1, level=1)
+    # First valid month: the first month that does not have any NAN, represented by index in month_list
+    valid_active = pd.DataFrame(valid_active.apply(lambda u: month_list.index((u==0.0).idxmax()), axis=1))
+    valid_active.columns = ['first_valid_month']
+    valid_active['dist_first_valid_month'] = month_list.index(month1)-valid_active['first_valid_month']+1
+    
+    # First active month: the first month that buys products
+    activity = x[target_cols].sum(axis=1, level=1)
+    valid_active['active_percentage'] = (activity>=1.0).sum(axis=1)/activity.shape[1]
+    
+    return valid_active
 
 def count_history(month1, max_lag):
     '''Statistics about historical data'''
@@ -864,8 +906,10 @@ def count_history(month1, max_lag):
 
     # concatenate data
     df = pd.concat(df, ignore_index=True)
-
+    
+    # Drop irrelevant features, which never occur in models
     df = df.loc[:, ['fecha_dato']+cat_cols+target_cols]
+    # If month_new is not the last month, keep only customers with new products 
     if month_new<len(month_list)-1:
         # select customers if this is not test set
         df = df.loc[df.ncodpers.isin(ncodpers_list), :]
@@ -873,7 +917,8 @@ def count_history(month1, max_lag):
     # set ncodpers and fecha_dato as index
     df.set_index(['ncodpers', 'fecha_dato'], inplace=True)
 
-    # unstack to make month as columns
+    # unstack to make month as columns, now we have MultiIndex with months and 
+    # products in two levels
     df = df.unstack(level=-1, fill_value=np.nan)
 
     # Arithmetic /exponent weighted average of products for each (customer, product) pair 
@@ -886,10 +931,10 @@ def count_history(month1, max_lag):
     mean_product['ncodpers'] = df.index.tolist() # Note: orders of ncodpers in df and ncodpers_list are different! 
     for k in target_cols:
         mean_product[k+'_lag_mean'] = group0.get_group(k).mean(axis=1).values
-
     mean_product.set_index('ncodpers', inplace=True)
 
-    # Exponent average of products for each (customer, product) pair
+    # Exponent average of products for each (customer, product) pair with 
+    # different decay factors 
     mean_exp_product = pd.DataFrame()
     mean_exp_product['ncodpers'] = df.index.tolist() # Note: orders of ncodpers in df and ncodpers_list are different! 
     mean_exp_alpha1 = 0.1
@@ -904,38 +949,58 @@ def count_history(month1, max_lag):
 
     mean_exp_product.set_index('ncodpers', inplace=True)
 
+    # Distance to the last positive flank (01)
     distance_positive_flank = pd.DataFrame()
     distance_positive_flank['ncodpers'] = df.index.tolist()
     for k in target_cols:
         distance_positive_flank[k+'_dist_pos_flank'] = dist_pos_flank(group0.get_group(k))
-
     distance_positive_flank.set_index('ncodpers', inplace=True)
+    
+    # Distance to the first positive flank (01)
+    distance_positive_flank_first = pd.DataFrame()
+    distance_positive_flank_first['ncodpers'] = df.index.tolist()
+    for k in target_cols:
+        distance_positive_flank_first[k+'_dist_pos_flank_first'] = dist_pos_flank_first(group0.get_group(k))
+    distance_positive_flank_first.set_index('ncodpers', inplace=True)
 
+    # Distance to the last negative flank (10)
     distance_negative_flank = pd.DataFrame()
     distance_negative_flank['ncodpers'] = df.index.tolist()
     for k in target_cols:
         distance_negative_flank[k+'_dist_neg_flank'] = dist_neg_flank(group0.get_group(k))
-
     distance_negative_flank.set_index('ncodpers', inplace=True)
 
+    # Distance to the first negative flank (10)
+    distance_negative_flank_first = pd.DataFrame()
+    distance_negative_flank_first['ncodpers'] = df.index.tolist()
+    for k in target_cols:
+        distance_negative_flank_first[k+'_dist_neg_flank_first'] = dist_neg_flank_first(group0.get_group(k))
+    distance_negative_flank_first.set_index('ncodpers', inplace=True)
+
+    # Distance to the first 1
     distance_first_one = pd.DataFrame()
     distance_first_one['ncodpers'] = df.index.tolist()
     for k in target_cols:
         distance_first_one[k+'_dist_first_one'] = dist_first_one(group0.get_group(k))
-
     distance_first_one.set_index('ncodpers', inplace=True)
 
-    # count number of concatenating zeros before the second/current month
+    # Count number of concatenating zeros before the second/current month
+    # Or equivalently, distance to the last 1
     distance_last_one = pd.DataFrame()
     distance_last_one['ncodpers'] = df.index.tolist()
     for k in target_cols:
         distance_last_one[k+'_dist_last_one'] = dist_last_one(group0.get_group(k))
-
     distance_last_one.set_index('ncodpers', inplace=True)
+    
+    # First valid month, distance to first valid month, active month percentage
+    valid_active = valid_active_month(df, month1)
+    
+    
 
     history = distance_last_one.join((distance_first_one, distance_negative_flank, 
-        distance_positive_flank, mean_exp_product, mean_product))
-    
+        distance_positive_flank, mean_exp_product, mean_product, 
+        distance_positive_flank_first, distance_negative_flank_first, 
+        valid_active))
     history.to_hdf('../input/history_count_{}_{}.hdf'.format(month1, max_lag), 'count_zeros')
     
     return history
