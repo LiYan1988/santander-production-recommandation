@@ -640,7 +640,6 @@ def create_train(month, max_lag=5, pattern_flag=False):
     x_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
     y_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
     weight.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'weight')
-
     
     return x_train, y_train, weight
     
@@ -1001,12 +1000,16 @@ def count_history(month1, max_lag):
     # First valid month, distance to first valid month, active month percentage
     valid_active = valid_active_month(df, month1)
     
-    
+    # Lags
+    lags = df[target_cols].copy()
+    level1 = [month_list.index(month1)+1 - month_list.index(k) for k in lags.columns.get_level_values(1)]
+    level0 = lags.columns.get_level_values(0).tolist()
+    lags.columns = [l0+'_lag_'+str(l1) for l0, l1 in zip(level0, level1)]
 
     history = distance_last_one.join((distance_first_one, distance_negative_flank, 
         distance_positive_flank, mean_exp_product, mean_product, 
         distance_positive_flank_first, distance_negative_flank_first, 
-        valid_active))
+        valid_active, lags))
     history.to_hdf('../input/history_count_{}_{}.hdf'.format(month1, max_lag), 'count_zeros')
     
     return history
@@ -1241,3 +1244,28 @@ def load_pickle(file_name ):
     with open(file_name, 'rb') as f:
         return pickle.load(f)
 ###############################################################################
+        
+######################### Find all targets ####################################
+def all_target():
+    target = []
+    for m1, m2 in tqdm.tqdm_notebook(list(zip(month_list[:-2], month_list[1:-1]))):
+        df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(m1)).loc[:, ['ncodpers']+target_cols]
+        df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(m2)).loc[:, ['ncodpers']+target_cols]
+
+        df1.set_index('ncodpers', inplace=True)
+        df2.set_index('ncodpers', inplace=True)
+
+        dt = df2.subtract(df1).fillna(0.0)
+        dt.reset_index(inplace=True)
+        dt = dt.melt(id_vars='ncodpers')
+        dt['variable'] = dt['variable'].map({k: i for i, k in enumerate(target_cols)})
+        dt = dt.loc[dt['value']==1.0]
+        dt.drop('value', axis=1, inplace=True)
+        dt.reset_index(drop=True, inplace=True)
+        dt['fecha_dato'] = m2
+        
+        target.append(dt)
+
+    target = pd.concat(target, ignore_index=True)
+    target.to_hdf('../input/all_target.hdf', 'all_target')
+    return target
