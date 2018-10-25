@@ -750,6 +750,12 @@ def calculate_weight(x_train, y_train):
     x_train_ncodpers['xgb_weight_8'] = np.exp(0.9/x_train_ncodpers['n_target']-0.9)
     x_train_ncodpers['xgb_weight_9'] = np.exp(0.8/x_train_ncodpers['n_target']-0.8)
     x_train_ncodpers['xgb_weight_10'] = np.exp(0.7/x_train_ncodpers['n_target']-0.7)
+    x_train_ncodpers['xgb_weight_11'] = np.exp(0.6/x_train_ncodpers['n_target']-0.6)
+    x_train_ncodpers['xgb_weight_12'] = np.exp(0.5/x_train_ncodpers['n_target']-0.5)
+    x_train_ncodpers['xgb_weight_13'] = np.exp(0.4/x_train_ncodpers['n_target']-0.4)
+    x_train_ncodpers['xgb_weight_14'] = np.exp(0.3/x_train_ncodpers['n_target']-0.3)
+    x_train_ncodpers['xgb_weight_15'] = np.exp(0.2/x_train_ncodpers['n_target']-0.2)
+    x_train_ncodpers['xgb_weight_16'] = np.exp(0.1/x_train_ncodpers['n_target']-0.1)
     
     xgb_weight = pd.DataFrame(x_train.loc[:, 'ncodpers'].copy()).join(x_train_ncodpers, on='ncodpers')
     xgb_weight.drop('n_target', axis=1, inplace=True)
