@@ -22,6 +22,7 @@ from numba import jit
 import pickle
 import itertools
 import re
+import timeit
 
 tqdm.tqdm.pandas()
 
@@ -1172,7 +1173,7 @@ def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=
     dval = xgb.DMatrix(x_val, y_val)
 
     ground_truth = {'train': gt_train, 'val': gt_val}
-    data_hash = {'train': hash(dtrain.get_label().tostring()), 'val': hash(dval.get_label().tostring())}
+    data_len = {'train': len(dtrain.get_label()), 'val': len(dval.get_label())}
 
     for weight_index in weight_set:
         history[weight_index] = {}
@@ -1193,7 +1194,7 @@ def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=
             print('Train with weight {}, repetition {} of {}'.format(weight_index, n, n_repeat))
             model = xgb.train(param, dtrain, num_rounds, evals=[(dtrain, 'train'), (dval, 'val')], 
                 verbose_eval=verbose_eval, feval=eval_map, evals_result=history[weight_index][n], 
-                gt=ground_truth, ts=data_hash)
+                gt=ground_truth, ts=data_len)
             model_dict[weight_index].append(model)
             time_end = time.time()
             print('Validate logloss = {:.5f}, MAP@7 = {:.5f}, time = {:.2f} min'.format(
@@ -1272,23 +1273,22 @@ def apk(actual, predicted, k=7, default=0.0):
 
 @jit
 def eval_map(y_prob, dtrain, gt={}, ts={}):
-    '''Evaluate MAP@7 for train and validation sets'''
+    '''
+    Evaluate MAP@7 for train and validation sets---
+    '''
     # Check which set is it?
-    if hash(dtrain.get_label().tostring())==ts['train']:
-        gti = gt['train']['index']
-        gtv = gt['train']['value']
-    elif hash(dtrain.get_label().tostring())==ts['val']:
-        gti = gt['val']['index']
-        gtv = gt['val']['value']
+    if len(dtrain.get_label())==ts['train']:
+        glist = gt['train']
+    elif len(dtrain.get_label())==ts['val']:
+        glist = gt['val']
     
-    n = len(gti)
-    y_pred = {}
-    score = 0
-    for i, (cust_id, idx) in enumerate(gti.items()):
-        tmp = np.mean(y_prob[idx, :], axis=0)
-        y_pred[cust_id] = np.argsort(tmp)[:-8:-1]
-        score += apk(gtv[cust_id], y_pred[cust_id])
-    score /= n
+    n = len(glist)
+    score = np.zeros(n)
+    for i in range(n):
+        tmp = np.mean(y_prob[glist[i][1], :], axis=0)
+        tmp = np.argsort(tmp)[:-8:-1]
+        score[i] = apk(glist[i][0], tmp)
+    score = np.mean(score)
 
     return 'MAP@7', score
     
@@ -1302,7 +1302,7 @@ def prep_map(x_train, y_train):
     gti = pd.DataFrame(x_train.loc[:, 'ncodpers']).reset_index()
     gti = gti.groupby('ncodpers')['index'].apply(lambda x: x.values).to_dict()
     
-    gt = {'value': gtv, 'index': gti}
+    gt = np.array([[gtv[k], gti[k]] for k in gtv.keys()])
     
     return gt
 ###########################################################################
