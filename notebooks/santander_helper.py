@@ -755,22 +755,22 @@ def calculate_weight(x_train, y_train):
     x_train_ncodpers = pd.concat((x_train.loc[:, 'ncodpers'], y_train), axis=1, ignore_index=True)
     x_train_ncodpers.columns = ['ncodpers', 'n_target']
     x_train_ncodpers = pd.DataFrame(x_train_ncodpers.groupby('ncodpers')['n_target'].count())
-    x_train_ncodpers['xgb_weight_1'] = 1.0/x_train_ncodpers['n_target']
+    #    x_train_ncodpers['xgb_weight_1'] = 1.0/x_train_ncodpers['n_target']
     x_train_ncodpers['xgb_weight_2'] = np.exp(1.0/x_train_ncodpers['n_target']-1)
-    x_train_ncodpers['xgb_weight_3'] = 1.0
-    x_train_ncodpers['xgb_weight_4'] = x_train_ncodpers['n_target'].apply(lambda x: 1/sum(1/k for k in range(1, 1+x)))
-    x_train_ncodpers['xgb_weight_5'] = np.exp(1.3/x_train_ncodpers['n_target']-1.3)
-    x_train_ncodpers['xgb_weight_6'] = np.exp(1.2/x_train_ncodpers['n_target']-1.2)
-    x_train_ncodpers['xgb_weight_7'] = np.exp(1.1/x_train_ncodpers['n_target']-1.1)
-    x_train_ncodpers['xgb_weight_8'] = np.exp(0.9/x_train_ncodpers['n_target']-0.9)
-    x_train_ncodpers['xgb_weight_9'] = np.exp(0.8/x_train_ncodpers['n_target']-0.8)
-    x_train_ncodpers['xgb_weight_10'] = np.exp(0.7/x_train_ncodpers['n_target']-0.7)
-    x_train_ncodpers['xgb_weight_11'] = np.exp(0.6/x_train_ncodpers['n_target']-0.6)
-    x_train_ncodpers['xgb_weight_12'] = np.exp(0.5/x_train_ncodpers['n_target']-0.5)
-    x_train_ncodpers['xgb_weight_13'] = np.exp(0.4/x_train_ncodpers['n_target']-0.4)
-    x_train_ncodpers['xgb_weight_14'] = np.exp(0.3/x_train_ncodpers['n_target']-0.3)
-    x_train_ncodpers['xgb_weight_15'] = np.exp(0.2/x_train_ncodpers['n_target']-0.2)
-    x_train_ncodpers['xgb_weight_16'] = np.exp(0.1/x_train_ncodpers['n_target']-0.1)
+    #    x_train_ncodpers['xgb_weight_3'] = 1.0
+    #    x_train_ncodpers['xgb_weight_4'] = x_train_ncodpers['n_target'].apply(lambda x: 1/sum(1/k for k in range(1, 1+x)))
+    #    x_train_ncodpers['xgb_weight_5'] = np.exp(1.3/x_train_ncodpers['n_target']-1.3)
+    #    x_train_ncodpers['xgb_weight_6'] = np.exp(1.2/x_train_ncodpers['n_target']-1.2)
+    #    x_train_ncodpers['xgb_weight_7'] = np.exp(1.1/x_train_ncodpers['n_target']-1.1)
+    #    x_train_ncodpers['xgb_weight_8'] = np.exp(0.9/x_train_ncodpers['n_target']-0.9)
+    #    x_train_ncodpers['xgb_weight_9'] = np.exp(0.8/x_train_ncodpers['n_target']-0.8)
+    #    x_train_ncodpers['xgb_weight_10'] = np.exp(0.7/x_train_ncodpers['n_target']-0.7)
+    #    x_train_ncodpers['xgb_weight_11'] = np.exp(0.6/x_train_ncodpers['n_target']-0.6)
+    #    x_train_ncodpers['xgb_weight_12'] = np.exp(0.5/x_train_ncodpers['n_target']-0.5)
+    #    x_train_ncodpers['xgb_weight_13'] = np.exp(0.4/x_train_ncodpers['n_target']-0.4)
+    #    x_train_ncodpers['xgb_weight_14'] = np.exp(0.3/x_train_ncodpers['n_target']-0.3)
+    #    x_train_ncodpers['xgb_weight_15'] = np.exp(0.2/x_train_ncodpers['n_target']-0.2)
+    #    x_train_ncodpers['xgb_weight_16'] = np.exp(0.1/x_train_ncodpers['n_target']-0.1)
     
     xgb_weight = pd.DataFrame(x_train.loc[:, 'ncodpers'].copy()).join(x_train_ncodpers, on='ncodpers')
     xgb_weight.drop('n_target', axis=1, inplace=True)
@@ -915,11 +915,12 @@ def count_history(month1, max_lag, fixed_lag):
     month_new = month_list.index(month1)+1
     month_end = month_list.index(month1)
     month_start = month_end-max_lag+1
+    month_start_fixed_lag = month_end-fixed_lag+1 # the month index for fixed_lag
     
     # Check if month_new is the last month
+    customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
     if month_new<len(month_list)-1:
         # Customers with new products in month_new
-        customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
         ncodpers_list = customer_product_pair.loc[customer_product_pair.fecha_dato==month_list[month_new], 
             'ncodpers'].unique().tolist()
 
@@ -927,7 +928,7 @@ def count_history(month1, max_lag, fixed_lag):
     df = []
     for m in range(month_start, month_end+1):
         df.append(pd.read_hdf('../input/data_month_{}.hdf'.format(month_list[m]), 'data_month'))
-
+        
     # concatenate data
     df = pd.concat(df, ignore_index=True)
     
@@ -1044,11 +1045,40 @@ def count_history(month1, max_lag, fixed_lag):
         key=lambda x: (x[::-1].split('_', 1)[1][::-1], 
                        int(x[::-1].split('_', 1)[0][::-1]) ) )
     lags = lags[lags_cols]
+    
+    # New products purchased by each customer in each month backward fixed_lag
+    # months
+    # Count the number of products
+    n_new_1 = customer_product_pair.groupby(['ncodpers', 'fecha_dato'])['product'].count()
+    n_new_1 = n_new_1.unstack(level=1).fillna(0.0)
+    current_month_range = list(range(month_start_fixed_lag, month_new))
+    n_new = pd.DataFrame(index=n_new_1.index)
+    for i, m in enumerate(current_month_range):
+        if m<1:
+            n_new['n_new_products_lag_'+str(fixed_lag-i)] = np.nan
+        else:
+            n_new['n_new_products_lag_'+str(fixed_lag-i)] = n_new_1[month_list[m]]
+            
+    # Target history of each product in each month
+    history_target = []
+    for t in range(len(target_cols)):
+        tmp = customer_product_pair.loc[customer_product_pair['product']==t, :].copy()
+        tmp = tmp.set_index(['ncodpers', 'fecha_dato']).unstack(level=1)
+        tmp = tmp.replace({np.nan: 0, t: 1})
+        tmp.columns = tmp.columns.levels[1]
+        target_tmp = pd.DataFrame(index=tmp.index)
+        for i, m in enumerate(current_month_range):
+            if m<1:
+                target_tmp[target_cols[t]+'_target_lag_'+str(fixed_lag-i)] = np.nan
+            else:
+                target_tmp[target_cols[t]+'_target_lag_'+str(fixed_lag-i)] = tmp[month_list[m]]
+        history_target.append(target_tmp)
+    history_target = pd.concat(history_target, axis=1)
 
     history = distance_last_one.join((distance_first_one, distance_negative_flank, 
         distance_positive_flank, mean_exp_product, mean_product, 
         distance_positive_flank_first, distance_negative_flank_first, 
-        valid_active, lags))
+        valid_active, lags, n_new, history_target))
     history.to_hdf('../input/history_count_{}_{}_{}.hdf'.format(month1, max_lag, fixed_lag), 'count_zeros')
     
     return history
