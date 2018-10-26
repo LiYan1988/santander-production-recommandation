@@ -1279,13 +1279,13 @@ def eval_map(y_prob, dtrain, gt={}, ts={}):
         gtv = gt['val']['value']
     
     n = len(gti)
-    apks = np.zeros(n)
     y_pred = {}
+    score = 0
     for i, (cust_id, idx) in enumerate(gti.items()):
         tmp = np.mean(y_prob[idx, :], axis=0)
         y_pred[cust_id] = np.argsort(tmp)[:-8:-1]
-        apks[i] = apk(gtv[cust_id], y_pred[cust_id])
-    score = np.mean(apks)
+        score += apk(gtv[cust_id], y_pred[cust_id])
+    score /= n
 
     return 'MAP@7', score
     
