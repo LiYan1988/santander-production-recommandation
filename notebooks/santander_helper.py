@@ -21,6 +21,7 @@ import collections
 from numba import jit
 import pickle
 import itertools
+import re
 
 tqdm.tqdm.pandas()
 
@@ -144,7 +145,7 @@ def count_pattern(month1, max_lag):
         for m in range(month_start, month_end+1):
             df.append(pd.read_hdf('../input/data_month_{}.hdf'.format(month_list[m]), 'data_month'))
 
-        ncodpers_list = df[-1].ncodpers.unique().tolist()
+        #ncodpers_list = df[-1].ncodpers.unique().tolist()
 
         df = pd.concat(df, ignore_index=True)
         
@@ -158,7 +159,7 @@ def count_pattern(month1, max_lag):
         pattern_count.drop('ncodpers', axis=1, inplace=True)
         pattern_count.fillna(0.0, inplace=True)
            
-        del dt, df, ncodpers_list
+        del dt, df #, ncodpers_list
         gc.collect()
         
         pattern_count.to_hdf('../input/count_pattern_{}_{}.hdf'.format(month1, max_lag), 'pattern_count')
@@ -529,15 +530,31 @@ def count_zeros(month1, max_lag):
     
 ############################# The following functions are more updated
         
-def create_train(month, max_lag=5, pattern_flag=False):
-    '''Another method to create train data sets'''
+def create_train(month, max_lag=5, fixed_lag=6, pattern_flag=True):
+    '''Another method to create train data sets
+    Input:
+        month: the train month, customer information is in this month, other 
+            product related information is from previous months
+        max_lag: maximum lag (previous months) to look backward for product
+            related statistical information
+        fixed_lag: maximum lag (previous months) to look backward for raw
+            product history
+        pattern_flag: if consider patterns (0 and 1 combinations) when 
+            processing product history, it is affected by max_lag
+        
+        We will always try to set max_lag>=fixed_lag, i.e., max_lag should 
+        always include all the history. For 2015-02-28, max_lag is set to 1,
+        whereas for 2016-05-28, max_lag is 16.
+        But fixed_lag is a fixed value for all months, and np.nan is filled 
+        if there is no history data.
+    '''
     
     # First check if the data is saved.
     try:
-        if os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
-            x_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
-            y_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
-            weight = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'weight')
+        if os.path.exists('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag)):
+            x_train = pd.read_hdf('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag), 'x_train')
+            y_train = pd.read_hdf('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag), 'y_train')
+            weight = pd.read_hdf('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag), 'weight')
             
             return x_train, y_train, weight
     except:
@@ -616,7 +633,7 @@ def create_train(month, max_lag=5, pattern_flag=False):
     df2 = pd.merge(df2, cpp, on='ncodpers', how='right')
     
     # number of zero indexes
-    zc = count_history(month1, max_lag)
+    zc = count_history(month1, max_lag, fixed_lag)
     df2 = df2.join(zc, on='ncodpers')
     
     if pattern_flag:
@@ -637,18 +654,18 @@ def create_train(month, max_lag=5, pattern_flag=False):
     
     # Save data if it does not exist
 #    if not os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
-    x_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
-    y_train.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'y_train')
-    weight.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'weight')
+    x_train.to_hdf('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag), 'x_train')
+    y_train.to_hdf('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag), 'y_train')
+    weight.to_hdf('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag), 'weight')
     
     return x_train, y_train, weight
     
-def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
+def create_test(month='2016-06-28', max_lag=5, fixed_lag=6, pattern_flag=True):
     '''Another method to create train data sets'''
     
     # First check if the data is saved.
-    if os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
-        x_train = pd.read_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
+    if os.path.exists('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag)):
+        x_train = pd.read_hdf('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag), 'x_train')
         
         return x_train
     
@@ -714,7 +731,7 @@ def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
     df2['n_products'] = df2[target_cols].sum(axis=1)
     
     # number of history of data 
-    zc = count_history(month1, max_lag)
+    zc = count_history(month1, max_lag, fixed_lag)
     df2 = df2.join(zc, on='ncodpers')
     
     if pattern_flag:
@@ -728,8 +745,7 @@ def create_test(month='2016-06-28', max_lag=5, pattern_flag=False):
         gc.collect()
     
     # Save data if it does not exist
-    if not os.path.exists('../input/x_train_{}_{}.hdf'.format(month, max_lag)):
-        df2.to_hdf('../input/x_train_{}_{}.hdf'.format(month, max_lag), 'x_train')
+    df2.to_hdf('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag), 'x_train')
     
     return df2
 
@@ -884,12 +900,15 @@ def valid_active_month(x, month1):
     
     return valid_active
 
-def count_history(month1, max_lag):
-    '''Statistics about historical data'''
+def count_history(month1, max_lag, fixed_lag):
+    '''Statistics about historical data
+    max_lag should be greater than fixed_lag when previous months are available
+    This will include as much history information as possible in statistics
+    '''
     
-    if os.path.exists('../input/history_count_{}_{}.hdf'.format(month1, max_lag)):
-        df = pd.read_hdf('../input/history_count_{}_{}.hdf'.format(month1, max_lag), 
-            'count_zeros')
+    if os.path.exists('../input/history_count_{}_{}_{}.hdf'.format(month1, max_lag, fixed_lag)):
+        df = pd.read_hdf('../input/history_count_{}_{}_{}.hdf'.format(month1, 
+            max_lag, fixed_lag), 'count_zeros')
         
         return df
     
@@ -1001,19 +1020,39 @@ def count_history(month1, max_lag):
     valid_active = valid_active_month(df, month1)
     
     # Lags
+    # Will not use this part because lags may differ, but model requires a 
+    # fixed lag
     lags = df[target_cols].copy()
+    # Convert MultiIndex columns to single index
     level1 = [month_list.index(month1)+1 - month_list.index(k) for k in lags.columns.get_level_values(1)]
     level0 = lags.columns.get_level_values(0).tolist()
     lags.columns = [l0+'_lag_'+str(l1) for l0, l1 in zip(level0, level1)]
+    # Make number of lag months equals to fixed_lag
+    if fixed_lag<max_lag:
+        # Remove months if there are more than needed
+        # Note that l1 starts from 1 and is goes to max_lag
+        lags_cols = [l0+'_lag_'+str(l1) for l0, l1 in zip(level0, level1) if l1<=fixed_lag]
+        lags = lags[lags_cols]
+    elif fixed_lag>max_lag:
+        # Add NAN columns if there is less 
+        for c in target_cols:
+            for l in range(max_lag+1, fixed_lag+1):
+                lags[c+'_lag_'+str(l)] = np.nan
+    # Sort columns first by the order in target_cols and then by lag number
+    # matched_cols = [c for c in cols if re.match(r'^ind_.*_ult1_lag_[0-9]+$', c)]
+    lags_cols = sorted(lags.columns.tolist(), 
+        key=lambda x: (x[::-1].split('_', 1)[1][::-1], 
+                       int(x[::-1].split('_', 1)[0][::-1]) ) )
+    lags = lags[lags_cols]
 
     history = distance_last_one.join((distance_first_one, distance_negative_flank, 
         distance_positive_flank, mean_exp_product, mean_product, 
         distance_positive_flank_first, distance_negative_flank_first, 
         valid_active, lags))
-    history.to_hdf('../input/history_count_{}_{}.hdf'.format(month1, max_lag), 'count_zeros')
+    history.to_hdf('../input/history_count_{}_{}_{}.hdf'.format(month1, max_lag, fixed_lag), 'count_zeros')
     
     return history
-    
+
 ############################## CV ######################################
 def cv_xgb_skfrm(params, x_train, y_train, num_boost_round=3, n_splits=3, 
                            n_repeats=2, random_state=0, verbose_eval=False):
@@ -1244,9 +1283,13 @@ def load_pickle(file_name ):
     with open(file_name, 'rb') as f:
         return pickle.load(f)
 ###############################################################################
-        
+
 ######################### Find all targets ####################################
-def all_target():
+def calculate_customer_product_pair():
+    if os.path.exists('../input/customer_product_pair.hdf'):
+        target = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
+        return target
+    
     target = []
     for m1, m2 in tqdm.tqdm_notebook(list(zip(month_list[:-2], month_list[1:-1]))):
         df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(m1)).loc[:, ['ncodpers']+target_cols]
@@ -1255,7 +1298,8 @@ def all_target():
         df1.set_index('ncodpers', inplace=True)
         df2.set_index('ncodpers', inplace=True)
 
-        dt = df2.subtract(df1).fillna(0.0)
+        dt = df2.join(df1, how='left', lsuffix='_2', rsuffix='_1').fillna(0.0)
+        dt = pd.DataFrame(dt.values[:, :19]-dt.values[:, 19:], index=df2.index, columns=target_cols)
         dt.reset_index(inplace=True)
         dt = dt.melt(id_vars='ncodpers')
         dt['variable'] = dt['variable'].map({k: i for i, k in enumerate(target_cols)})
@@ -1267,5 +1311,90 @@ def all_target():
         target.append(dt)
 
     target = pd.concat(target, ignore_index=True)
-    target.to_hdf('../input/all_target.hdf', 'all_target')
+    target.to_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
     return target
+
+############################## Mean encoding #################################
+def mean_encoding_month_product():
+    '''
+    Encode previous month products with mean of buying each product in the next month
+    '''
+    # column names for newly purchased products
+    new_cols = [k+'_new' for k in target_cols]
+    new_cols_map = {k+'_new': n for n, k in enumerate(target_cols)}
+    # ordered dict containing new products in each month, key is the first month
+    # du = collections.OrderedDict()
+    # new products information for mean encoding
+    mean_encoding = []
+    # (customer, product) pair for new products in every month
+    customer_product_pair = {}
+    for m1, m2 in tqdm.tqdm_notebook(list(zip(month_list[:-2], month_list[1:-1]))):
+        # load first month data
+        df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(m1), 'data_month')
+        # load second month data
+        df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(m2), 'data_month')
+
+        # only keep products information
+        df1 = df1[['ncodpers']+target_cols]
+        df2 = df2[['ncodpers']+target_cols]
+
+        # calculate new products
+        # merge first and second month products
+        x = df2.merge(df1, on=['ncodpers'], how='left', suffixes=('_l', ''))
+        x.fillna(0.0, inplace=True)
+        # calculate difference 
+        x = x.iloc[:, 1:20].values-x.iloc[:, 20:].values
+        x = pd.DataFrame(x, index=df2.ncodpers, columns=new_cols)
+        # remove negative elements
+        x[x<0] = 0
+        # only keep customers with new products
+        x = x[x.sum(axis=1)>0]
+
+        # keep copy of customers with new products
+        new_product = x.copy()
+
+        # obtain (customer, product) pairs
+        x = pd.DataFrame(x.stack())
+        x.reset_index(inplace=True)
+        x.columns = ['ncodpers', 'product', 'indicator']
+        x.loc[:, 'product'] = x.loc[:, 'product'].map(new_cols_map)
+        # only keep (customer, product) pairs for new products
+        x = x.loc[x.indicator>0]
+        x.drop('indicator', axis=1, inplace=True)
+        x.reset_index(inplace=True, drop=True)
+        # a list of customers with new products
+        ncodpers_new_product = x.ncodpers.unique()
+        customer_product_pair[m2] = x
+    #     x.to_hdf('../input/customer_product_pair_{}.hdf'.format(m2), 
+    #         'customer_product_pair')
+
+        # only keep customers with new products in the second month
+        # df2 can be used to create train data
+        df2 = df2.loc[df2.ncodpers.isin(ncodpers_new_product)]
+
+        # prepare mean encoding 
+        # product pattern in the first month
+        df1['target_combine'] = np.sum(df1.values[:, 1:] * 
+        np.float_power(2, np.arange(0, len(target_cols))), 
+        axis=1, dtype=np.float64)
+        df1.drop(target_cols, axis=1, inplace=True)
+        # number and indicator of new products
+        new_product['n_new'] = new_product.loc[:, new_cols].sum(axis=1)
+        new_product['ind_new'] = new_product.loc[:, new_cols].max(axis=1)
+        # join with the first month 
+        df1 = df1.join(new_product, on='ncodpers', how='left')
+        df1.fillna(0.0, inplace=True)
+        df1.drop('ncodpers', axis=1, inplace=True)
+
+        # add results to list
+        mean_encoding.append(df1)
+
+    # concatenate all data
+    mean_encoding = pd.concat(mean_encoding, ignore_index=True)
+    # calculate mean vaues 
+    mean_encoding_result = mean_encoding.groupby('target_combine').mean()
+    # save mean encoding result
+    mean_encoding_result.to_hdf('../input/mean_encoding_result_eda_4_21.hdf',
+        'mean_encoding_result')    
+    
+    return mean_encoding_result
