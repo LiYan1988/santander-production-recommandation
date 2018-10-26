@@ -564,7 +564,10 @@ def create_train(month, max_lag=5, fixed_lag=6, pattern_flag=True):
     month1 = month_list[month_list.index(month2)-1] # the first month
     
     # Load customer product pair
-    customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
+    try:
+        customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
+    except:
+        customer_product_pair = calculate_customer_product_pair()
     
     # Load second month
     df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
@@ -1341,6 +1344,8 @@ def calculate_customer_product_pair():
         target.append(dt)
 
     target = pd.concat(target, ignore_index=True)
+    target.columns = ['ncodpers', 'product', 'fecha_dato']
+    
     target.to_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
     return target
 
