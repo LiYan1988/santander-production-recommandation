@@ -1255,6 +1255,9 @@ def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=
 
 @jit
 def apk(actual, predicted, k=7, default=0.0):
+    if actual.size==0:
+        return default
+    
     if predicted.size>k:
         predicted = predicted[:k]
     score = 0.0
@@ -1264,9 +1267,6 @@ def apk(actual, predicted, k=7, default=0.0):
         if p in actual and p not in predicted[:i]:
             num_hits += 1.0
             score += num_hits / (i+1.0)
-
-    if actual.size==0:
-        return default
 
     return score / min(actual.size, k)
 
