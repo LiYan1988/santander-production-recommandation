@@ -1363,6 +1363,8 @@ def eval_map(y_prob, dtrain, gt={}, ts={}):
         glist = gt['train']
     elif len(dtrain.get_label())==ts['val']:
         glist = gt['val']
+    else:
+        return 'MAP@7', 0
     
     n = len(glist)
     score = np.zeros(n)
