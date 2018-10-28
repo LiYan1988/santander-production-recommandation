@@ -912,7 +912,7 @@ def count_history(month1, max_lag, fixed_lag):
     
     if os.path.exists('../input/history_count_{}_{}_{}.hdf'.format(month1, max_lag, fixed_lag)):
         df = pd.read_hdf('../input/history_count_{}_{}_{}.hdf'.format(month1, 
-            max_lag, fixed_lag), 'count_zeros')
+            max_lag, fixed_lag), 'history_count')
         
         return df
     
@@ -1064,26 +1064,28 @@ def count_history(month1, max_lag, fixed_lag):
             n_new['n_new_products_lag_'+str(fixed_lag-i)] = n_new_1[month_list[m]]
             
     # Target history of each product in each month
-    history_target = []
-    for t in range(len(target_cols)):
-        tmp = customer_product_pair.loc[customer_product_pair['product']==t, :].copy()
-        tmp = tmp.set_index(['ncodpers', 'fecha_dato']).unstack(level=1)
-        tmp = tmp.replace({np.nan: 0, t: 1})
-        tmp.columns = tmp.columns.levels[1]
-        target_tmp = pd.DataFrame(index=tmp.index)
-        for i, m in enumerate(current_month_range):
-            if m<1:
-                target_tmp[target_cols[t]+'_target_lag_'+str(fixed_lag-i)] = np.nan
-            else:
-                target_tmp[target_cols[t]+'_target_lag_'+str(fixed_lag-i)] = tmp[month_list[m]]
-        history_target.append(target_tmp)
-    history_target = pd.concat(history_target, axis=1)
+    # history_target = []
+    # for t in range(len(target_cols)):
+        # tmp = customer_product_pair.loc[customer_product_pair['product']==t, :].copy()
+        # tmp = tmp.set_index(['ncodpers', 'fecha_dato']).unstack(level=1)
+        # tmp = tmp.replace({np.nan: 0, t: 1})
+        # tmp.columns = tmp.columns.levels[1]
+        # target_tmp = pd.DataFrame(index=tmp.index)
+        # for i, m in enumerate(current_month_range):
+            # if i == fixed_lag-3:
+                # break
+            # if m<1:
+                # target_tmp[target_cols[t]+'_target_lag_'+str(fixed_lag-i)] = np.nan
+            # else:
+                # target_tmp[target_cols[t]+'_target_lag_'+str(fixed_lag-i)] = tmp[month_list[m]]
+        # history_target.append(target_tmp)
+    # history_target = pd.concat(history_target, axis=1)
 
     history = distance_last_one.join((distance_first_one, distance_negative_flank, 
         distance_positive_flank, mean_exp_product, mean_product, 
         distance_positive_flank_first, distance_negative_flank_first, 
-        valid_active, lags, n_new, history_target))
-    history.to_hdf('../input/history_count_{}_{}_{}.hdf'.format(month1, max_lag, fixed_lag), 'count_zeros')
+        valid_active, lags, n_new))
+    history.to_hdf('../input/history_count_{}_{}_{}.hdf'.format(month1, max_lag, fixed_lag), 'history_count')
     
     return history
 
@@ -1213,6 +1215,87 @@ def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=
     history.columns.names = ['weight_index', 'repetition', 'data_set', 'metrics']
         
     return history, model_dict
+   
+
+def train_test_month(param, num_rounds, month_train, month_val, sub_name,
+                     month_test='2016-06-28', n_repeat=2, 
+                     random_seed=0, max_lag=5, 
+                     fixed_lag=6, verbose_eval=True, n_features=250):
+    '''Train on one month and validate on another'''
+    history = {}
+    model_dict = {}
+    y_pred = []
+
+    # Train data
+    x_train, y_train, w_train = create_train(month_train, max_lag=max_lag, fixed_lag=fixed_lag, pattern_flag=True)
+    # Validation data
+    x_val, y_val, w_val = create_train(month_val, max_lag=max_lag, fixed_lag=fixed_lag, pattern_flag=True)
+    # Test data
+    x_test = create_test(month_test, max_lag=max_lag, fixed_lag=fixed_lag, pattern_flag=True)
+    
+    # Select features
+    if n_features is not None:
+        fi = pd.read_csv('feature_importance.csv', header=None)
+        fi = fi.iloc[:min(n_features, len(fi)), 0].values.tolist()
+        fi = list(set(fi) | set(target_cols) | set(cat_cols))
+        x_train = x_train[fi]
+        x_val = x_val[fi]
+        x_test = x_test[fi]
+    
+    gt_train = prep_map(x_train, y_train)
+    gt_val = prep_map(x_val, y_val)
+
+    dtrain = xgb.DMatrix(x_train, label=y_train, weight=w_train)
+    dval = xgb.DMatrix(x_val, label=y_val, weight=w_val)
+    dtest = xgb.DMatrix(x_test)
+
+    ground_truth = {'train': gt_train, 'val': gt_val}
+    data_len = {'train': len(dtrain.get_label()), 'val': len(dval.get_label())}
+
+    np.random.seed(random_seed)
+    for n in range(n_repeat):
+        history[n] = {}
+
+        param['seed'] = np.random.randint(10**6)
+
+        time_start = time.time()
+        print('Train, validate, and predict, repetition {} of {}'.format(n, n_repeat))
+        model = xgb.train(param, dtrain, num_rounds, evals=[(dtrain, 'train'), (dval, 'val')], 
+            verbose_eval=verbose_eval, feval=eval_map, evals_result=history[n], 
+            gt=ground_truth, ts=data_len)
+        model_dict[n] = model
+        y_tmp = model.predict(dtest)
+        y_tmp[x_test[target_cols]==1] = 0
+        y_pred.append(y_tmp)
+        
+        time_end = time.time()
+        print('Validate logloss = {:.5f}, MAP@7 = {:.5f}, time = {:.2f} min'.format(
+            history[n]['val']['mlogloss'][-1], 
+            history[n]['val']['MAP@7'][-1], (time_end-time_start)/60))
+        print('-'*50)
+        print('')
+
+    # Process training history
+    history = {(n, d, m): history[n][d][m] 
+               for n in range(n_repeat)
+               for d in ['train', 'val'] 
+               for m in ['mlogloss', 'MAP@7']}
+    history = pd.DataFrame(history)
+    history.columns.names = ['repetition', 'data_set', 'metrics']
+    
+    # Process test result
+    y_pred = np.array(y_pred)
+    y_sub = np.mean(y_pred, axis=0)
+    y_sub = np.argsort(y_sub, axis=1)
+    y_sub = np.fliplr(y_sub)[:, :7]
+    # Prepare submission
+    test_id = x_test.loc[:, 'ncodpers'].values
+    y_sub = [' '.join([target_cols[k] for k in pred]) for pred in y_sub]
+    y_sub = pd.DataFrame({'ncodpers': test_id, 'added_products': y_sub})
+    y_sub.to_csv(sub_name, compression='gzip', index=False)
+    
+    return history, model_dict, y_pred, y_sub
+
 ###########################################################################
     
 ############################## MAP #########################################
