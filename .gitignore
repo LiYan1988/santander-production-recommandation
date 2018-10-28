@@ -5,3 +5,4 @@ input/*
 *.csv*
 .idea/*
 *.pickle
+!notebooks/feature_importance.csv
