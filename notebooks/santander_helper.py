@@ -1235,7 +1235,7 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
     
     # Select features
     if n_features is not None:
-        fi = pd.read_csv('feature_importance.csv')
+        fi = pd.read_csv('feature_importance.csv', )
         fi = fi.iloc[:min(n_features, fi.shape[0]), 0].values.tolist()
         fi = list(set(fi) | set(target_cols) | set(cat_cols))
         x_train = x_train[fi]
@@ -1295,7 +1295,6 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
     y_sub.to_csv(sub_name, compression='gzip', index=False)
     
     return history, model_dict, y_pred, y_sub
-
 ###########################################################################
     
 ############################## MAP #########################################
