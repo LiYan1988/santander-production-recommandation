@@ -1053,15 +1053,15 @@ def count_history(month1, max_lag, fixed_lag):
     # New products purchased by each customer in each month backward fixed_lag
     # months
     # Count the number of products
-    n_new_1 = customer_product_pair.groupby(['ncodpers', 'fecha_dato'])['product'].count()
-    n_new_1 = n_new_1.unstack(level=1).fillna(0.0)
-    current_month_range = list(range(month_start_fixed_lag, month_new))
-    n_new = pd.DataFrame(index=n_new_1.index)
-    for i, m in enumerate(current_month_range):
-        if m<1:
-            n_new['n_new_products_lag_'+str(fixed_lag-i)] = np.nan
-        else:
-            n_new['n_new_products_lag_'+str(fixed_lag-i)] = n_new_1[month_list[m]]
+    # n_new_1 = customer_product_pair.groupby(['ncodpers', 'fecha_dato'])['product'].count()
+    # n_new_1 = n_new_1.unstack(level=1).fillna(0.0)
+    # current_month_range = list(range(month_start_fixed_lag, month_new))
+    # n_new = pd.DataFrame(index=n_new_1.index)
+    # for i, m in enumerate(current_month_range):
+        # if m<1:
+            # n_new['n_new_products_lag_'+str(fixed_lag-i)] = np.nan
+        # else:
+            # n_new['n_new_products_lag_'+str(fixed_lag-i)] = n_new_1[month_list[m]]
             
     # Target history of each product in each month
     # history_target = []
@@ -1084,7 +1084,7 @@ def count_history(month1, max_lag, fixed_lag):
     history = distance_last_one.join((distance_first_one, distance_negative_flank, 
         distance_positive_flank, mean_exp_product, mean_product, 
         distance_positive_flank_first, distance_negative_flank_first, 
-        valid_active, lags, n_new))
+        valid_active, lags))
     history.to_hdf('../input/history_count_{}_{}_{}.hdf'.format(month1, max_lag, fixed_lag), 'history_count')
     
     return history
