@@ -180,10 +180,12 @@ for col in target_cols:
 MIN_MONTH_DICT = combined_small.groupby('id')['month_int'].min().to_dict()
 combined_small['min_month_int'] = combined_small['id'].map(lambda x: MIN_MONTH_DICT[x])
 
-# Only keep 
+# Drop the first month samples for all customers, because these samples do not have any target
 combined_small = combined_small[combined_small['min_month_int'] != combined_small['month_int']]
 
+# Calculate sum of added products 
 combined_small['sum_inds'] = combined_small[target_cols].sum(axis=1)
+# Keep test data, and drop samples without any added products
 combined_small = combined_small[(combined_small['sum_inds'] != 0) | (combined_small['month_int'] == 18)].copy()
 #combined_small = combined_small[(combined_small['sum_inds'] != 0) | (combined_small['month_int'] >= 17)].copy()
 
@@ -216,6 +218,8 @@ for shift_val in [1]:
     combined_orig[name] = combined_orig['id'].shift(shift_val).fillna(0).astype(np.int32)
     DIFF_CONDS[shift_val] = ((combined_orig['id'] - combined_orig[name]) != 0)
     combined_orig.drop(name,axis = 1,inplace=True)
+
+# Lag features for features in target_cols or cols_to_combine
 shifted_feature_names = []
 for col in cols_to_combine + target_cols:
     for shift_val in [1]:
@@ -228,30 +232,38 @@ for col in cols_to_combine + target_cols:
 toc=timeit.default_timer()
 print('Shift Time',toc - tic)
 
+# Remove features in very_low_cols and low_cols from cols_to_combine
 cols_to_combine = [x for x in cols_to_combine if x not in very_low_cols]
 cols_to_combine = [x for x in cols_to_combine if x not in low_cols]
 #%%
+# The difference between current and last month for features in cols_to_combine
 diff_feautres_s1 = []
 for col in cols_to_combine:
     name = col + '_s1_diff'
     diff_feautres_s1.append(name)
     combined_orig[name] = (combined_orig[col] - combined_orig[col + '_s_1']).astype(train_dtype_dict[col])
 
+# The first month a customer appeared
 MIN_MONTH_DICT = combined_orig.groupby('id')['month_int'].min().to_dict()
 combined_orig['min_month_int'] = combined_orig['id'].map(lambda x: MIN_MONTH_DICT[x]).astype(np.int8)
 
+# The minimum of antiguedad
 MIN_ANTIGUEDAD_DICT = combined_orig.groupby('id')['antiguedad'].min().to_dict()
 combined_orig['min_antiguedad'] = combined_orig['id'].map(lambda x: MIN_ANTIGUEDAD_DICT[x]).astype(np.int16)
 
+# The maximum of antiguedad
 MAX_ANTIGUEDAD_DICT = combined_orig.groupby('id')['antiguedad'].max().to_dict()
 combined_orig['max_antiguedad'] = combined_orig['id'].map(lambda x: MAX_ANTIGUEDAD_DICT[x]).astype(np.int16)
 
+# the min age
 MIN_AGE_DICT = combined_orig.groupby('id')['age'].min().to_dict()
 combined_orig['min_age'] = combined_orig['id'].map(lambda x: MIN_AGE_DICT[x]).astype(np.int16)
 
+# the max age
 MAX_AGE_DICT = combined_orig.groupby('id')['age'].max().to_dict()
 combined_orig['max_age'] = combined_orig['id'].map(lambda x: MAX_AGE_DICT[x]).astype(np.int16)
 
+# std, min, max of renta
 STD_RENTA_DICT = combined_orig.groupby('id')['renta'].std().to_dict()
 combined_orig['std_renta'] = combined_orig['id'].map(lambda x: STD_RENTA_DICT[x])
 MIN_RENTA_DICT = combined_orig.groupby('id')['renta'].min().to_dict()
@@ -259,13 +271,16 @@ combined_orig['min_renta'] = combined_orig['id'].map(lambda x: MIN_RENTA_DICT[x]
 MAX_RENTA_DICT = combined_orig.groupby('id')['renta'].max().to_dict()
 combined_orig['max_renta'] = combined_orig['id'].map(lambda x: MAX_RENTA_DICT[x])
 #%%
+# nunique of renta
 RENTA_VAL_COUNTS = combined_orig.groupby('renta')['id'].nunique().to_dict()
 combined_orig['renta_freq'] = combined_orig['renta'].map(lambda x: RENTA_VAL_COUNTS[x])
 #%%
+# Sort samples/rows
 combined_orig.sort_values(by = ['id','month_int'],inplace=True)
 combined_nd = combined_orig.drop_duplicates('id')
 
 #%%
+# Calculate target, added products
 for col in target_cols:
     combined_orig[col] = (combined_orig[col] - combined_orig[col + '_s_1']).astype(np.int8)
     combined_orig[col] = (combined_orig[col] > 0).astype(np.int8)
