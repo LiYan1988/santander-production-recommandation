@@ -1329,8 +1329,8 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
     return history, model_dict, y_pred, y_sub
 
 
-def cv_all_month(params, train, val, n_features=350, num_boost_round=3, n_splits=2,
-                           n_repeats=2, random_state=0, verbose_eval=False):
+def cv_all_month(params, train, val, n_features=350, num_boost_round=3,
+        n_repeats=2, random_state=0, verbose_eval=False):
     '''
     CV of xgb using Stratified KFold Repeated Models (SKFRM)
     verbose_eval is the same as in xgb.train
@@ -1339,7 +1339,7 @@ def cv_all_month(params, train, val, n_features=350, num_boost_round=3, n_splits
     clfs = {}
     running_time = {}
 
-    eval_metric = 'mlogloss'
+    eval_metric = params['eval_metric']
 
     x_train = train['x']
     y_train = train['y']
