@@ -1329,7 +1329,7 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
     return history, model_dict, y_pred, y_sub
 
 
-def cv_all_month(params, train, val, n_features=350, num_boost_round=3,
+def cv_all_month(params, train, val=None, n_features=350, num_boost_round=3,
         n_repeats=2, random_state=0, verbose_eval=False):
     '''
     CV of xgb using Stratified KFold Repeated Models (SKFRM)
@@ -1345,9 +1345,10 @@ def cv_all_month(params, train, val, n_features=350, num_boost_round=3,
     y_train = train['y']
     w_train = train['w']
 
-    x_val = val['x']
-    y_val = val['y']
-    w_val = val['w']
+    if val is not None:
+        x_val = val['x']
+        y_val = val['y']
+        w_val = val['w']
 
     # Select features
     if n_features is not None:
@@ -1355,16 +1356,24 @@ def cv_all_month(params, train, val, n_features=350, num_boost_round=3,
         fi = fi.iloc[:min(n_features, fi.shape[0]), 0].values.tolist()
         fi = list(set(fi) | set(target_cols) | set(cat_cols))
         x_train = x_train[fi]
-        x_val = x_val[fi]
+        if val is not None:
+            x_val = x_val[fi]
 
     dtrain = xgb.DMatrix(x_train, label=y_train, weight=w_train)
-    dval = xgb.DMatrix(x_val, label=y_val, weight=w_val)
-
-    # Ground truth parameters for evaluation of MAP@7
-    # We do not evaluate on the train data
-    gt_val = prep_map(x_val, y_val)
-    ground_truth = {'train': None, 'val': gt_val}
-    data_len = {'train': None, 'val': len(dval.get_label())}
+    
+    if val is not None:
+        dval = xgb.DMatrix(x_val, label=y_val, weight=w_val)
+        eval_list = [(dtrain, 'train'), (dval, 'val')]
+        gt_val = prep_map(x_val, y_val)
+        # Ground truth parameters for evaluation of MAP@7
+        # We do not evaluate on the train data
+        gt_val = prep_map(x_val, y_val)
+        ground_truth = {'train': None, 'val': gt_val}
+        data_len = {'train': None, 'val': len(dval.get_label())}
+    else:
+        eval_list = [(dtrain, 'train')]
+        ground_truth = {'train': None, 'val': None}
+        data_len = {'train': None, 'val': None}
 
     np.random.seed(random_state)
 
@@ -1377,32 +1386,38 @@ def cv_all_month(params, train, val, n_features=350, num_boost_round=3,
         params['seed'] = np.random.randint(10**6)
         clfs[m] = xgb.train(params, dtrain,
             num_boost_round=num_boost_round,
-            evals=[(dtrain, 'train'), (dval, 'val')],
+            evals=eval_list,
             evals_result=cv_results[m],
             verbose_eval=verbose_eval, feval=eval_map,
             gt=ground_truth, ts=data_len)
 
         running_time[m] = time.time() - start_time
 
-        print('Repeat {}, validate score = {:.3f}, running time = {:.3f} min'.format(m,
-            cv_results[m]['val'][eval_metric][-1], running_time[m]/60))
+        if val is not None:
+            print('Repeat {}, validate score = {:.3f}, running time = {:.3f} min'.format(m,
+                cv_results[m]['val'][eval_metric][-1], running_time[m]/60))
+        else:
+            print('Repeat {}, running time = {:.3f} min'.format(m, running_time[m]/60))
 
     # Post-process cv_results
-    cv_results_final = {}
-    for m in range(n_repeats):
-        cv_results_final['train', m] = cv_results[m]['train'][eval_metric]
-        cv_results_final['val', m] = cv_results[m]['val'][eval_metric]
+    if val is not None:
+        cv_results_final = {}
+        for m in range(n_repeats):
+            cv_results_final['train', m] = cv_results[m]['train'][eval_metric]
+            cv_results_final['val', m] = cv_results[m]['val'][eval_metric]
 
-    df = pd.DataFrame.from_dict(cv_results_final)
-    df.index.name = 'iteration'
-    df.columns.names = ['dataset', 'repeat']
+        df = pd.DataFrame.from_dict(cv_results_final)
+        df.index.name = 'iteration'
+        df.columns.names = ['dataset', 'repeat']
 
-    print('Score mean = {:.3f}, std = {:.3f}'.format(df['val'].iloc[-1].mean(), df['val'].iloc[-1].std()))
+        print('Score mean = {:.3f}, std = {:.3f}'.format(df['val'].iloc[-1].mean(), df['val'].iloc[-1].std()))
 
-    return df, clfs, running_time
+        return df, clfs, running_time
+    else:
+        return clfs, running_time
 
 
-def predict_all_month(model_dict, x_test, sub_name, n_features=350):
+def predict_all_month(model_dict, x_test, sub_name, n_features=350, n_trees=0):
     '''
     Predict on test set with multliple models in dict, data from all month.
     This function is used together with cv_all_month
@@ -1424,7 +1439,7 @@ def predict_all_month(model_dict, x_test, sub_name, n_features=350):
     dtest = xgb.DMatrix(x_test)
 
     for n in model_dict.keys():
-        y_tmp = model_dict[n].predict(dtest)
+        y_tmp = model_dict[n].predict(dtest, ntree_limit=n_trees)
         y_tmp[x_test[target_cols] == 1] = 0
         y_pred.append(y_tmp)
 

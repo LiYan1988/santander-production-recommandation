@@ -6,3 +6,5 @@ input/*
 .idea/*
 *.pickle
 !notebooks/feature_importance.csv
+*/.ipynb_checkpoints/*
+*/__pycache__/*
