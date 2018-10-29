@@ -671,7 +671,13 @@ def create_train(month, max_lag=5, fixed_lag=6, pattern_flag=True):
 
 
 def create_test(month='2016-06-28', max_lag=5, fixed_lag=6, pattern_flag=True):
-    '''Another method to create train data sets'''
+    '''Another method to create train data sets
+    :param month:
+    :param max_lag:
+    :param fixed_lag:
+    :param pattern_flag:
+    :return:
+    '''
 
     # First check if the data is saved.
     if os.path.exists('../input/x_train_{}_{}_{}.hdf'.format(month, max_lag, fixed_lag)):
@@ -1323,19 +1329,131 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
     return history, model_dict, y_pred, y_sub
 
 
-# ===========================================================================
+def cv_all_month(params, train, val, n_features=350, num_boost_round=3, n_splits=2,
+                           n_repeats=2, random_state=0, verbose_eval=False):
+    '''
+    CV of xgb using Stratified KFold Repeated Models (SKFRM)
+    verbose_eval is the same as in xgb.train
+    '''
+    cv_results = {}
+    clfs = {}
+    running_time = {}
 
+    eval_metric = 'mlogloss'
+
+    x_train = train['x']
+    y_train = train['y']
+    w_train = train['w']
+
+    x_val = val['x']
+    y_val = val['y']
+    w_val = val['w']
+
+    # Select features
+    if n_features is not None:
+        fi = pd.read_csv('feature_importance.csv', )
+        fi = fi.iloc[:min(n_features, fi.shape[0]), 0].values.tolist()
+        fi = list(set(fi) | set(target_cols) | set(cat_cols))
+        x_train = x_train[fi]
+        x_val = x_val[fi]
+
+    dtrain = xgb.DMatrix(x_train, label=y_train, weight=w_train)
+    dval = xgb.DMatrix(x_val, label=y_val, weight=w_val)
+
+    # Ground truth parameters for evaluation of MAP@7
+    # We do not evaluate on the train data
+    gt_val = prep_map(x_val, y_val)
+    ground_truth = {'train': None, 'val': gt_val}
+    data_len = {'train': None, 'val': len(dval.get_label())}
+
+    np.random.seed(random_state)
+
+    for m in range(n_repeats):
+
+        start_time = time.time()
+
+        # Placeholder for evals_result
+        cv_results[m] = {}
+        params['seed'] = np.random.randint(10**6)
+        clfs[m] = xgb.train(params, dtrain,
+            num_boost_round=num_boost_round,
+            evals=[(dtrain, 'train'), (dval, 'val')],
+            evals_result=cv_results[m],
+            verbose_eval=verbose_eval, feval=eval_map,
+            gt=ground_truth, ts=data_len)
+
+        running_time[m] = time.time() - start_time
+
+        print('Repeat {}, validate score = {:.3f}, running time = {:.3f} min'.format(m,
+            cv_results[m]['val'][eval_metric][-1], running_time[m]/60))
+
+    # Post-process cv_results
+    cv_results_final = {}
+    for m in range(n_repeats):
+        cv_results_final['train', m] = cv_results[m]['train'][eval_metric]
+        cv_results_final['val', m] = cv_results[m]['val'][eval_metric]
+
+    df = pd.DataFrame.from_dict(cv_results_final)
+    df.index.name = 'iteration'
+    df.columns.names = ['dataset', 'repeat']
+
+    print('Score mean = {:.3f}, std = {:.3f}'.format(df['val'].iloc[-1].mean(), df['val'].iloc[-1].std()))
+
+    return df, clfs, running_time
+
+
+def predict_all_month(model_dict, x_test, sub_name, n_features=350):
+    '''
+    Predict on test set with multliple models in dict, data from all month.
+    This function is used together with cv_all_month
+    :rtype: object
+    :param model_dict:
+    :param x_test:
+    :param sub_name:
+    :param n_features:
+    :return:
+    '''
+
+    y_pred = []
+
+    if n_features is not None:
+        fi = pd.read_csv('feature_importance.csv', )
+        fi = fi.iloc[:min(n_features, fi.shape[0]), 0].values.tolist()
+        fi = list(set(fi) | set(target_cols) | set(cat_cols))
+        x_test = x_test[fi]
+    dtest = xgb.DMatrix(x_test)
+
+    for n in model_dict.keys():
+        y_tmp = model_dict[n].predict(dtest)
+        y_tmp[x_test[target_cols] == 1] = 0
+        y_pred.append(y_tmp)
+
+    # Process test result
+    y_pred = np.array(y_pred)
+    y_sub = np.mean(y_pred, axis=0)
+    y_sub = np.argsort(y_sub, axis=1)
+    y_sub = np.fliplr(y_sub)[:, :7]
+    # Prepare submission
+    test_id = x_test.loc[:, 'ncodpers'].values
+    y_sub = [' '.join([target_cols[k] for k in pred]) for pred in y_sub]
+    y_sub = pd.DataFrame({'ncodpers': test_id, 'added_products': y_sub})
+    y_sub.to_csv(sub_name, compression='gzip', index=False)
+
+    return y_pred, y_sub
+
+# ===========================================================================
+#
 #  MAP ##
 # This part implements a hacky way of evaluating MAP during xgboost training.
-# This method is suitable when training on one month and validate on another 
+# This method is suitable when training on one month and validate on another
 # month, since ncodpers is the key in ground truth dictionaries.
-
+#
 # The procedure of MAP evaluation in train is:
-# 1. create train and validation sets, their names must be x_train, y_train, 
+# 1. create train and validation sets, their names must be x_train, y_train,
 #   and x_val, y_val
 # 2. create ground truth value and index for both train and validation sets
 # 3. run xgboost train
-
+#
 # Example code:
 # =============================================================================
 # #x_train, y_train, weight_train = create_train('2015-06-28', pattern_flag=True)
@@ -1347,10 +1465,10 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
 # #gt_train = prep_map(x_train, y_train)
 # #gt_val = prep_map(x_val, y_val)
 # #
-# #param = {'objective': 'multi:softprob', 
-# #         'eta': 0.05, 
-# #         'max_depth': 4, 
-# #         'silent': 1, 
+# #param = {'objective': 'multi:softprob',
+# #         'eta': 0.05,
+# #         'max_depth': 4,
+# #         'silent': 1,
 # #         'num_class': len(target_cols),
 # #         'eval_metric': 'mlogloss',
 # #         'min_child_weight': 1,
@@ -1359,10 +1477,11 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
 # #         'seed': 0}
 # #num_rounds = 200
 # #
-# #model = xgb.train(param, dtrain, num_rounds, 
-# #   evals=[(dtrain, 'train'), (dval, 'dval')], 
+# #model = xgb.train(param, dtrain, num_rounds,
+# #   evals=[(dtrain, 'train'), (dval, 'dval')],
 # #   verbose_eval=True, feval=eval_map)
 # =============================================================================
+
 
 @jit
 def apk(actual, predicted, k=7, default=0.0):
@@ -1432,7 +1551,6 @@ def load_pickle(file_name):
         return pickle.load(f)
 
 
-# Find all targets
 def calculate_customer_product_pair():
     if os.path.exists('../input/customer_product_pair.hdf'):
         target = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
@@ -1465,7 +1583,6 @@ def calculate_customer_product_pair():
     return target
 
 
-# Mean encoding
 def mean_encoding_month_product():
     '''
     Encode previous month products with mean of buying each product in the next month
