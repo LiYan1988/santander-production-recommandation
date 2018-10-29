@@ -166,325 +166,326 @@ def count_pattern(month1, max_lag):
         pattern_count.to_hdf('../input/count_pattern_{}_{}.hdf'.format(month1, max_lag), 'pattern_count')
         return pattern_count
 
-def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
-    '''Create train and test data for month'''
+# def create_train_test(month, max_lag=5, target_flag=True, pattern_flag=False):
+    # '''Create train and test data for month'''
     
-    start_time = time.time()
+    # start_time = time.time()
     
-    month2 = month # the second month
-    month1 = month_list[month_list.index(month2)-1] # the first month
+    # month2 = month # the second month
+    # month1 = month_list[month_list.index(month2)-1] # the first month
     
-    # check if max_lag and month are compatible
-    assert month_list.index(month2)>=max_lag, 'max_lag should be less than the index of {}, which is {}'.format(
-        month2, month_list.index(month2))
+    # # check if max_lag and month are compatible
+    # assert month_list.index(month2)>=max_lag, 'max_lag should be less than the index of {}, which is {}'.format(
+        # month2, month_list.index(month2))
     
-    print('Loading {} data'.format(month1))
-    # first/early month
-    df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(month1), 'data_month')
-    print('Loading {} data'.format(month2))
-    # second/later month
-    df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
+    # print('Loading {} data'.format(month1))
+    # # first/early month
+    # df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(month1), 'data_month')
+    # print('Loading {} data'.format(month2))
+    # # second/later month
+    # df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
     
-    print('Products in {}'.format(month2))
-    # second month products
-    df2_target = df2.loc[:, ['ncodpers']+target_cols].copy()
-    df2_target.set_index('ncodpers', inplace=True, drop=False) # initially keep ncodpers as a column and drop it later
-    # a dataframe containing the ncodpers only
-    df2_ncodpers = pd.DataFrame(df2_target.ncodpers)
-    # drop ncodpers from df2_target
-    df2_target.drop('ncodpers', axis=1, inplace=True)
+    # print('Products in {}'.format(month2))
+    # # second month products
+    # df2_target = df2.loc[:, ['ncodpers']+target_cols].copy()
+    # df2_target.set_index('ncodpers', inplace=True, drop=False) # initially keep ncodpers as a column and drop it later
+    # # a dataframe containing the ncodpers only
+    # df2_ncodpers = pd.DataFrame(df2_target.ncodpers)
+    # # drop ncodpers from df2_target
+    # df2_target.drop('ncodpers', axis=1, inplace=True)
     
-    print('Products in {}'.format(month1))
-    # first month products for all the customers in the second month
-    df1_target = df1.loc[:, ['ncodpers']+target_cols].copy()
-    df1_target.set_index('ncodpers', inplace=True, drop=True) # do not keep ncodpers as column
-    # obtain the products purchased by all the customers in the second month
-    # by joining df1_target to df2_ncodpers, NAN filled by 0.0
-    df1_target = df2_ncodpers.join(df1_target, how='left')
-    df1_target.fillna(0.0, inplace=True)
-    df1_target.drop('ncodpers', axis=1, inplace=True)
+    # print('Products in {}'.format(month1))
+    # # first month products for all the customers in the second month
+    # df1_target = df1.loc[:, ['ncodpers']+target_cols].copy()
+    # df1_target.set_index('ncodpers', inplace=True, drop=True) # do not keep ncodpers as column
+    # # obtain the products purchased by all the customers in the second month
+    # # by joining df1_target to df2_ncodpers, NAN filled by 0.0
+    # df1_target = df2_ncodpers.join(df1_target, how='left')
+    # df1_target.fillna(0.0, inplace=True)
+    # df1_target.drop('ncodpers', axis=1, inplace=True)
     
-    print('New products added in {}'.format(month2))
-    # new products from the first to second month
-    target = df2_target.subtract(df1_target)
-    target[target<0] = 0
-    target.fillna(0.0, inplace=True)
+    # print('New products added in {}'.format(month2))
+    # # new products from the first to second month
+    # target = df2_target.subtract(df1_target)
+    # target[target<0] = 0
+    # target.fillna(0.0, inplace=True)
     
-    print('Join customer features and previous month products for {}'.format(month2))
-    # feature of the second month: 
-    # 1. customer features in the second month
-    # 2. products in the first month
-    x_vars = df2[cat_cols].copy() # cat_cols already includes ncodpers
-    x_vars.reset_index(inplace=True, drop=True) # drop original index and make a new one
-    x_vars.reset_index(inplace=True, drop=False) # also set the new index as a column for recoding row orders
-    x_vars_cols = x_vars.columns.tolist()
-    x_vars_cols[0] = 'sample_order' # change the name of the new column
-    x_vars.columns = x_vars_cols
-    x_vars.set_index('ncodpers', drop=True, inplace=True) # set the index to ncodpers again
-    x_vars = x_vars.join(df1_target) # direct join since df1_target contains all customers in month2
+    # print('Join customer features and previous month products for {}'.format(month2))
+    # # feature of the second month: 
+    # # 1. customer features in the second month
+    # # 2. products in the first month
+    # x_vars = df2[cat_cols].copy() # cat_cols already includes ncodpers
+    # x_vars.reset_index(inplace=True, drop=True) # drop original index and make a new one
+    # x_vars.reset_index(inplace=True, drop=False) # also set the new index as a column for recoding row orders
+    # x_vars_cols = x_vars.columns.tolist()
+    # x_vars_cols[0] = 'sample_order' # change the name of the new column
+    # x_vars.columns = x_vars_cols
+    # x_vars.set_index('ncodpers', drop=True, inplace=True) # set the index to ncodpers again
+    # x_vars = x_vars.join(df1_target) # direct join since df1_target contains all customers in month2
     
-    print('Concatenate this and previous months ind_activadad_cliente')
-    # concatenate this and previous month values of ind_activadad_cliente
-    df2_ind_actividad_cliente = df2[['ncodpers', 'ind_actividad_cliente']].copy()
-    df2_ind_actividad_cliente.set_index('ncodpers', inplace=True)
-    df2_ind_actividad_cliente.sort_index(inplace=True)
+    # print('Concatenate this and previous months ind_activadad_cliente')
+    # # concatenate this and previous month values of ind_activadad_cliente
+    # df2_ind_actividad_cliente = df2[['ncodpers', 'ind_actividad_cliente']].copy()
+    # df2_ind_actividad_cliente.set_index('ncodpers', inplace=True)
+    # df2_ind_actividad_cliente.sort_index(inplace=True)
     
-    df1_ind_actividad_cliente = df1[['ncodpers', 'ind_actividad_cliente']].copy()
-    df1_ind_actividad_cliente.set_index('ncodpers', inplace=True)
-    df1_ind_actividad_cliente.sort_index(inplace=True)
+    # df1_ind_actividad_cliente = df1[['ncodpers', 'ind_actividad_cliente']].copy()
+    # df1_ind_actividad_cliente.set_index('ncodpers', inplace=True)
+    # df1_ind_actividad_cliente.sort_index(inplace=True)
 
-    df2_ind_actividad_cliente = df2_ind_actividad_cliente.join(df1_ind_actividad_cliente, rsuffix='_p')
-    df2_ind_actividad_cliente.fillna(2.0, inplace=True)
-    df2_ind_actividad_cliente['ind_actividad_client_combine'] = 3*df2_ind_actividad_cliente.ind_actividad_cliente+df2_ind_actividad_cliente.ind_actividad_cliente_p
-    df2_ind_actividad_cliente = pd.DataFrame(df2_ind_actividad_cliente.iloc[:, -1])
+    # df2_ind_actividad_cliente = df2_ind_actividad_cliente.join(df1_ind_actividad_cliente, rsuffix='_p')
+    # df2_ind_actividad_cliente.fillna(2.0, inplace=True)
+    # df2_ind_actividad_cliente['ind_actividad_client_combine'] = 3*df2_ind_actividad_cliente.ind_actividad_cliente+df2_ind_actividad_cliente.ind_actividad_cliente_p
+    # df2_ind_actividad_cliente = pd.DataFrame(df2_ind_actividad_cliente.iloc[:, -1])
 
-    x_vars = pd.merge(x_vars, df2_ind_actividad_cliente, left_index=True, right_index=True, how='left')
+    # x_vars = pd.merge(x_vars, df2_ind_actividad_cliente, left_index=True, right_index=True, how='left')
     
-    print('Concatenate this and previous months tiprel_1mes')
-    # concatenate this and previous month value of tiprel_1mes
-    df2_tiprel_1mes = df2[['ncodpers', 'tiprel_1mes']].copy()
-    df2_tiprel_1mes.set_index('ncodpers', inplace=True)
-    df2_tiprel_1mes.sort_index(inplace=True)
+    # print('Concatenate this and previous months tiprel_1mes')
+    # # concatenate this and previous month value of tiprel_1mes
+    # df2_tiprel_1mes = df2[['ncodpers', 'tiprel_1mes']].copy()
+    # df2_tiprel_1mes.set_index('ncodpers', inplace=True)
+    # df2_tiprel_1mes.sort_index(inplace=True)
 
-    df1_tiprel_1mes = df1[['ncodpers', 'tiprel_1mes']].copy()
-    df1_tiprel_1mes.set_index('ncodpers', inplace=True)
-    df1_tiprel_1mes.sort_index(inplace=True)
+    # df1_tiprel_1mes = df1[['ncodpers', 'tiprel_1mes']].copy()
+    # df1_tiprel_1mes.set_index('ncodpers', inplace=True)
+    # df1_tiprel_1mes.sort_index(inplace=True)
 
-    df2_tiprel_1mes = df2_tiprel_1mes.join(df1_tiprel_1mes, rsuffix='_p')
-    df2_tiprel_1mes.fillna(0.0, inplace=True)
-    df2_tiprel_1mes['tiprel_1mes_combine'] = 6*df2_tiprel_1mes.tiprel_1mes+df2_tiprel_1mes.tiprel_1mes_p
-    df2_tiprel_1mes = pd.DataFrame(df2_tiprel_1mes.iloc[:, -1])
+    # df2_tiprel_1mes = df2_tiprel_1mes.join(df1_tiprel_1mes, rsuffix='_p')
+    # df2_tiprel_1mes.fillna(0.0, inplace=True)
+    # df2_tiprel_1mes['tiprel_1mes_combine'] = 6*df2_tiprel_1mes.tiprel_1mes+df2_tiprel_1mes.tiprel_1mes_p
+    # df2_tiprel_1mes = pd.DataFrame(df2_tiprel_1mes.iloc[:, -1])
 
-    x_vars = pd.merge(x_vars, df2_tiprel_1mes, left_index=True, right_index=True, how='left')
+    # x_vars = pd.merge(x_vars, df2_tiprel_1mes, left_index=True, right_index=True, how='left')
     
-    print('Combine all products for each customer')
-    # combination of target columns
-    x_vars['target_combine'] = np.sum(x_vars[target_cols].values*
-        np.float_power(2, np.arange(0, len(target_cols))), axis=1, dtype=np.float64)
-    # Load mean encoding data and merge with x_vars
-    target_mean_encoding = pd.read_hdf('../input/target_mean_encoding_2.hdf', 'target_mean_encoding')
-    x_vars = x_vars.join(target_mean_encoding, on='target_combine')
+    # print('Combine all products for each customer')
+    # # combination of target columns
+    # x_vars['target_combine'] = np.sum(x_vars[target_cols].values*
+        # np.float_power(2, np.arange(0, len(target_cols))), axis=1, dtype=np.float64)
+    # # Load mean encoding data and merge with x_vars
+    # target_mean_encoding = pd.read_hdf('../input/target_mean_encoding_2.hdf', 'target_mean_encoding')
+    # x_vars = x_vars.join(target_mean_encoding, on='target_combine')
 
-    # number of purchased products in the previous month
-    x_vars['n_products'] = x_vars[target_cols].sum(axis=1)
+    # # number of purchased products in the previous month
+    # x_vars['n_products'] = x_vars[target_cols].sum(axis=1)
     
-    del (df1_tiprel_1mes, df2_tiprel_1mes, df1_ind_actividad_cliente, 
-        df2_ind_actividad_cliente, df2_target, df1_target, df2_ncodpers)
-    gc.collect()
+    # del (df1_tiprel_1mes, df2_tiprel_1mes, df1_ind_actividad_cliente, 
+        # df2_ind_actividad_cliente, df2_target, df1_target, df2_ncodpers)
+    # gc.collect()
 
-    if pattern_flag:
-        print('\nStart counting patterns:')
-        # count patterns of historical products
-        dp = count_pattern(month1, max_lag)
-        x_vars = x_vars.join(dp)
-        x_vars.loc[:, dp.columns] = x_vars.loc[:, dp.columns].fillna(-1)
+    # if pattern_flag:
+        # print('\nStart counting patterns:')
+        # # count patterns of historical products
+        # dp = count_pattern(month1, max_lag)
+        # x_vars = x_vars.join(dp)
+        # x_vars.loc[:, dp.columns] = x_vars.loc[:, dp.columns].fillna(-1)
         
-        del dp
-        gc.collect()
+        # del dp
+        # gc.collect()
         
-    # return x_vars if target_flag is False
-    if not target_flag:
-        x_vars.drop('sample_order', axis=1, inplace=True) # drop sample_order
-        x_vars.reset_index(inplace=True, drop=False) # add ncodpers
+    # # return x_vars if target_flag is False
+    # if not target_flag:
+        # x_vars.drop('sample_order', axis=1, inplace=True) # drop sample_order
+        # x_vars.reset_index(inplace=True, drop=False) # add ncodpers
         
-        end_time = time.time()
-        print('Time used: {:.3f} min'.format((end_time-start_time)/60.0))
+        # end_time = time.time()
+        # print('Time used: {:.3f} min'.format((end_time-start_time)/60.0))
         
-        return x_vars 
+        # return x_vars 
     
-    if target_flag:    
-        print('Prepare target')
-        # prepare target/label for each added product from the first to second month
-        # join target to x_vars
-        x_vars_new = x_vars.join(target, rsuffix='_t')
-        # set ncodpers as one column
-        x_vars_new.reset_index(inplace=True, drop=False)
-        x_vars.reset_index(inplace=True, drop=False)
-        var_cols = x_vars.columns.tolist()
+    # if target_flag:    
+        # print('Prepare target')
+        # # prepare target/label for each added product from the first to second month
+        # # join target to x_vars
+        # x_vars_new = x_vars.join(target, rsuffix='_t')
+        # # set ncodpers as one column
+        # x_vars_new.reset_index(inplace=True, drop=False)
+        # x_vars.reset_index(inplace=True, drop=False)
+        # var_cols = x_vars.columns.tolist()
         
-        del x_vars
-        gc.collect()
+        # del x_vars
+        # gc.collect()
 		
-        # melt
-        return x_vars_new
-        x_vars_new = x_vars_new.melt(id_vars=var_cols)
-        # mapping from target_cols to index
-        target_cols_mapping = {c+'_t': n for (n, c) in enumerate(target_cols)}
-        # replace column name by index
-        x_vars_new.variable.replace(target_cols_mapping, inplace=True)
-        # reorder rows
-        x_vars_new.sort_values(['sample_order', 'variable'], inplace=True)
-        # keep new products
-        x_vars_new = x_vars_new[x_vars_new.value>0]
-        # drop sample_order and value
-        x_vars_new.drop(['sample_order', 'value'], axis=1, inplace=True)
-        # keep the order of rows as in the original data set
-        x_vars_new.reset_index(drop=True, inplace=True)
+        # # melt
+        # return x_vars_new
+        # x_vars_new = x_vars_new.melt(id_vars=var_cols)
+        # # mapping from target_cols to index
+        # target_cols_mapping = {c+'_t': n for (n, c) in enumerate(target_cols)}
+        # # replace column name by index
+        # x_vars_new.variable.replace(target_cols_mapping, inplace=True)
+        # # reorder rows
+        # x_vars_new.sort_values(['sample_order', 'variable'], inplace=True)
+        # # keep new products
+        # x_vars_new = x_vars_new[x_vars_new.value>0]
+        # # drop sample_order and value
+        # x_vars_new.drop(['sample_order', 'value'], axis=1, inplace=True)
+        # # keep the order of rows as in the original data set
+        # x_vars_new.reset_index(drop=True, inplace=True)
 
         
-        var_cols.remove('sample_order')
-        # variable
-        x_vars = x_vars_new.loc[:, var_cols].copy()
-        # target/label
-        target = x_vars_new.loc[:, 'variable'].copy()
+        # var_cols.remove('sample_order')
+        # # variable
+        # x_vars = x_vars_new.loc[:, var_cols].copy()
+        # # target/label
+        # target = x_vars_new.loc[:, 'variable'].copy()
 
-        end_time = time.time()
-        print('Time used: {:.3f} min'.format((end_time-start_time)/60.0))
+        # end_time = time.time()
+        # print('Time used: {:.3f} min'.format((end_time-start_time)/60.0))
         
-        return x_vars, target
+        # return x_vars, target
 		
 
-def obtain_target(month):
-    '''Create train and test data for month'''
-    
-    month2 = month # the second month
-    month1 = month_list[month_list.index(month2)-1] # the first month
-    
-    # first/early month
-    df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(month1), 'data_month')
-    # second/later month
-    df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
-    
-    # second month products
-    df2_target = df2.loc[:, ['ncodpers']+target_cols].copy()
-    df2_target.set_index('ncodpers', inplace=True, drop=False) # initially keep ncodpers as a column and drop it later
-    # a dataframe containing the ncodpers only
-    df2_ncodpers = pd.DataFrame(df2_target.ncodpers)
-    # drop ncodpers from df2_target
-    df2_target.drop('ncodpers', axis=1, inplace=True)
-    
-    # first month products for all the customers in the second month
-    df1_target = df1.loc[:, ['ncodpers']+target_cols].copy()
-    df1_target.set_index('ncodpers', inplace=True, drop=True) # do not keep ncodpers as column
-    # obtain the products purchased by all the customers in the second month
-    # by joining df1_target to df2_ncodpers, NAN filled by 0.0
-    df1_target = df2_ncodpers.join(df1_target, how='left')
-    df1_target.fillna(0.0, inplace=True)
-    df1_target.drop('ncodpers', axis=1, inplace=True)
-    
-    # new products from the first to second month
-    target = df2_target.subtract(df1_target)
-    target[target<0] = 0
-    target.fillna(0.0, inplace=True)
-    
-    # feature of the second month: 
-    # 1. customer features in the second month
-    # 2. products in the first month
-    x_vars = df2[['ncodpers']].copy() # cat_cols already includes ncodpers
-    x_vars.reset_index(inplace=True, drop=True) # drop original index and make a new one
-    x_vars.reset_index(inplace=True, drop=False) # also set the new index as a column for recoding row orders
-    x_vars_cols = x_vars.columns.tolist()
-    x_vars_cols[0] = 'sample_order' # change the name of the new column
-    x_vars.columns = x_vars_cols
-    x_vars.set_index('ncodpers', drop=True, inplace=True) # set the index to ncodpers again
+# def obtain_target(month):
+#     '''Create train and test data for month'''
+#
+#     month2 = month # the second month
+#     month1 = month_list[month_list.index(month2)-1] # the first month
+#
+#     # first/early month
+#     df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(month1), 'data_month')
+#     # second/later month
+#     df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
+#
+#     # second month products
+#     df2_target = df2.loc[:, ['ncodpers']+target_cols].copy()
+#     df2_target.set_index('ncodpers', inplace=True, drop=False) # initially keep ncodpers as a column and drop it later
+#     # a dataframe containing the ncodpers only
+#     df2_ncodpers = pd.DataFrame(df2_target.ncodpers)
+#     # drop ncodpers from df2_target
+#     df2_target.drop('ncodpers', axis=1, inplace=True)
+#
+#     # first month products for all the customers in the second month
+#     df1_target = df1.loc[:, ['ncodpers']+target_cols].copy()
+#     df1_target.set_index('ncodpers', inplace=True, drop=True) # do not keep ncodpers as column
+#     # obtain the products purchased by all the customers in the second month
+#     # by joining df1_target to df2_ncodpers, NAN filled by 0.0
+#     df1_target = df2_ncodpers.join(df1_target, how='left')
+#     df1_target.fillna(0.0, inplace=True)
+#     df1_target.drop('ncodpers', axis=1, inplace=True)
+#
+#     # new products from the first to second month
+#     target = df2_target.subtract(df1_target)
+#     target[target<0] = 0
+#     target.fillna(0.0, inplace=True)
+#
+#     # feature of the second month:
+#     # 1. customer features in the second month
+#     # 2. products in the first month
+#     x_vars = df2[['ncodpers']].copy() # cat_cols already includes ncodpers
+#     x_vars.reset_index(inplace=True, drop=True) # drop original index and make a new one
+#     x_vars.reset_index(inplace=True, drop=False) # also set the new index as a column for recoding row orders
+#     x_vars_cols = x_vars.columns.tolist()
+#     x_vars_cols[0] = 'sample_order' # change the name of the new column
+#     x_vars.columns = x_vars_cols
+#     x_vars.set_index('ncodpers', drop=True, inplace=True) # set the index to ncodpers again
+#
+#     # prepare target/label for each added product from the first to second month
+#     # join target to x_vars
+#     x_vars_new = x_vars.join(target)
+#     # set ncodpers as one column
+#     x_vars_new.reset_index(inplace=True, drop=False)
+#     x_vars.reset_index(inplace=True, drop=False)
+#
+#     # melt
+#     x_vars_new = x_vars_new.melt(id_vars=x_vars.columns)
+#     # mapping from target_cols to index
+#     target_cols_mapping = {c: n for (n, c) in enumerate(target_cols)}
+#     # replace column name by index
+#     x_vars_new.variable.replace(target_cols_mapping, inplace=True)
+#     # reorder rows
+#     x_vars_new.sort_values(['sample_order', 'variable'], inplace=True)
+#
+#     # keep new products
+#     x_vars_new = x_vars_new[x_vars_new.value>0]
+#     # drop sample_order and value
+#     x_vars_new.drop(['sample_order', 'value'], axis=1, inplace=True)
+#     # keep the order of rows as in the original data set
+#     x_vars_new.reset_index(drop=True, inplace=True)
+#
+#     x_vars_new.columns = ['ncodpers', 'target']
+#
+#     return x_vars_new
 
-    # prepare target/label for each added product from the first to second month
-    # join target to x_vars
-    x_vars_new = x_vars.join(target)
-    # set ncodpers as one column
-    x_vars_new.reset_index(inplace=True, drop=False)
-    x_vars.reset_index(inplace=True, drop=False)
-    
-    # melt
-    x_vars_new = x_vars_new.melt(id_vars=x_vars.columns)
-    # mapping from target_cols to index
-    target_cols_mapping = {c: n for (n, c) in enumerate(target_cols)}
-    # replace column name by index
-    x_vars_new.variable.replace(target_cols_mapping, inplace=True)
-    # reorder rows
-    x_vars_new.sort_values(['sample_order', 'variable'], inplace=True)
+# def check_target(month1, month2, target_flag=True):
+#     '''Create train and test data between month1 and month2'''
+#
+#     # first/early month
+#     df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(month1), 'data_month')
+#     # second/later month
+#     df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
+#
+#     # second month products
+#     df2_target = df2.loc[:, ['ncodpers']+target_cols].copy()
+#     df2_target.set_index('ncodpers', inplace=True, drop=False) # initially keep ncodpers as a column and drop it later
+#     # a dataframe containing the ncodpers only
+#     df2_ncodpers = pd.DataFrame(df2_target.ncodpers)
+#     # drop ncodpers from df2_target
+#     df2_target.drop('ncodpers', axis=1, inplace=True)
+#
+#     # first month products for all the customers in the second month
+#     df1_target = df1.loc[:, ['ncodpers']+target_cols].copy()
+#     df1_target.set_index('ncodpers', inplace=True, drop=True) # do not keep ncodpers as column
+#     # obtain the products purchased by all the customers in the second month
+#     # by joining df1_target to df2_ncodpers, NAN filled by 0.0
+#     df1_target = df2_ncodpers.join(df1_target, how='left')
+#     df1_target.fillna(0.0, inplace=True)
+#     df1_target.drop('ncodpers', axis=1, inplace=True)
+#
+#     # new products from the first to second month
+#     target = df2_target.subtract(df1_target)
+#     target[target<0] = 0
+#     target.fillna(0.0, inplace=True)
+#
+#     # feature of the second month:
+#     # 1. customer features in the second month
+#     # 2. products in the first month
+#     x_vars = df2[cat_cols].copy() # cat_cols already includes ncodpers
+#     x_vars.reset_index(inplace=True, drop=True) # drop original index and make a new one
+#     x_vars.reset_index(inplace=True, drop=False) # also set the new index as a column for recoding row orders
+#     x_vars_cols = x_vars.columns.tolist()
+#     x_vars_cols[0] = 'sample_order' # change the name of the new column
+#     x_vars.columns = x_vars_cols
+#     x_vars.set_index('ncodpers', drop=True, inplace=True) # set the index to ncodpers again
+#     x_vars = x_vars.join(df1_target) # direct join since df1_target contains all customers in month2
+#
+#     # return x_vars if target_flag is False
+#     if not target_flag:
+#         x_vars.drop('sample_order', axis=1, inplace=True) # drop sample_order
+#         x_vars.reset_index(inplace=True, drop=False) # add ncodpers
+#         return x_vars #, df2_ncodpers, df1, df2, df1_target, df2_target
+#
+#     if target_flag:
+#         # prepare target/label for each added product from the first to second month
+#         # join target to x_vars
+#         x_vars_new = x_vars.join(target, rsuffix='_t')
+#         # set ncodpers as one column
+#         x_vars_new.reset_index(inplace=True, drop=False)
+#         x_vars.reset_index(inplace=True, drop=False)
+#
+#         # melt
+#         x_vars_new = x_vars_new.melt(id_vars=x_vars.columns)
+#         # mapping from target_cols to index
+#         target_cols_mapping = {c+'_t': n for (n, c) in enumerate(target_cols)}
+#         # replace column name by index
+#         x_vars_new.variable.replace(target_cols_mapping, inplace=True)
+#         # reorder rows
+#         x_vars_new.sort_values(['sample_order', 'variable'], inplace=True)
+#         # keep new products
+#         x_vars_new = x_vars_new[x_vars_new.value>0]
+#         # drop sample_order and value
+#         x_vars_new.drop(['sample_order', 'value'], axis=1, inplace=True)
+#         # keep the order of rows as in the original data set
+#         x_vars_new.reset_index(drop=True, inplace=True)
+#
+#         var_cols = x_vars.columns.tolist()
+#         var_cols.remove('sample_order')
+#         # variable
+#         x_vars = x_vars_new.loc[:, var_cols].copy()
+#         # target/label
+#         target = x_vars_new.loc[:, 'variable'].copy()
+#
+#         return x_vars, target, x_vars_new
+#
 
-    # keep new products
-    x_vars_new = x_vars_new[x_vars_new.value>0]
-    # drop sample_order and value
-    x_vars_new.drop(['sample_order', 'value'], axis=1, inplace=True)
-    # keep the order of rows as in the original data set
-    x_vars_new.reset_index(drop=True, inplace=True)
-    
-    x_vars_new.columns = ['ncodpers', 'target']
-
-    return x_vars_new
-
-def check_target(month1, month2, target_flag=True):
-    '''Create train and test data between month1 and month2'''
-    
-    # first/early month
-    df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(month1), 'data_month')
-    # second/later month
-    df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(month2), 'data_month')
-    
-    # second month products
-    df2_target = df2.loc[:, ['ncodpers']+target_cols].copy()
-    df2_target.set_index('ncodpers', inplace=True, drop=False) # initially keep ncodpers as a column and drop it later
-    # a dataframe containing the ncodpers only
-    df2_ncodpers = pd.DataFrame(df2_target.ncodpers)
-    # drop ncodpers from df2_target
-    df2_target.drop('ncodpers', axis=1, inplace=True)
-    
-    # first month products for all the customers in the second month
-    df1_target = df1.loc[:, ['ncodpers']+target_cols].copy()
-    df1_target.set_index('ncodpers', inplace=True, drop=True) # do not keep ncodpers as column
-    # obtain the products purchased by all the customers in the second month
-    # by joining df1_target to df2_ncodpers, NAN filled by 0.0
-    df1_target = df2_ncodpers.join(df1_target, how='left')
-    df1_target.fillna(0.0, inplace=True)
-    df1_target.drop('ncodpers', axis=1, inplace=True)
-    
-    # new products from the first to second month
-    target = df2_target.subtract(df1_target)
-    target[target<0] = 0
-    target.fillna(0.0, inplace=True)
-    
-    # feature of the second month: 
-    # 1. customer features in the second month
-    # 2. products in the first month
-    x_vars = df2[cat_cols].copy() # cat_cols already includes ncodpers
-    x_vars.reset_index(inplace=True, drop=True) # drop original index and make a new one
-    x_vars.reset_index(inplace=True, drop=False) # also set the new index as a column for recoding row orders
-    x_vars_cols = x_vars.columns.tolist()
-    x_vars_cols[0] = 'sample_order' # change the name of the new column
-    x_vars.columns = x_vars_cols
-    x_vars.set_index('ncodpers', drop=True, inplace=True) # set the index to ncodpers again
-    x_vars = x_vars.join(df1_target) # direct join since df1_target contains all customers in month2
-    
-    # return x_vars if target_flag is False
-    if not target_flag:
-        x_vars.drop('sample_order', axis=1, inplace=True) # drop sample_order
-        x_vars.reset_index(inplace=True, drop=False) # add ncodpers
-        return x_vars #, df2_ncodpers, df1, df2, df1_target, df2_target
-    
-    if target_flag:    
-        # prepare target/label for each added product from the first to second month
-        # join target to x_vars
-        x_vars_new = x_vars.join(target, rsuffix='_t')
-        # set ncodpers as one column
-        x_vars_new.reset_index(inplace=True, drop=False)
-        x_vars.reset_index(inplace=True, drop=False)
-
-        # melt
-        x_vars_new = x_vars_new.melt(id_vars=x_vars.columns)
-        # mapping from target_cols to index
-        target_cols_mapping = {c+'_t': n for (n, c) in enumerate(target_cols)}
-        # replace column name by index
-        x_vars_new.variable.replace(target_cols_mapping, inplace=True)
-        # reorder rows
-        x_vars_new.sort_values(['sample_order', 'variable'], inplace=True)
-        # keep new products
-        x_vars_new = x_vars_new[x_vars_new.value>0]
-        # drop sample_order and value
-        x_vars_new.drop(['sample_order', 'value'], axis=1, inplace=True)
-        # keep the order of rows as in the original data set
-        x_vars_new.reset_index(drop=True, inplace=True)
-
-        var_cols = x_vars.columns.tolist()
-        var_cols.remove('sample_order')
-        # variable
-        x_vars = x_vars_new.loc[:, var_cols].copy()
-        # target/label
-        target = x_vars_new.loc[:, 'variable'].copy()
-
-        return x_vars, target, x_vars_new
-        
 def count_zeros(month1, max_lag):
     if os.path.exists('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag)):
         df = pd.read_hdf('../input/count_zeros_{}_{}.hdf'.format(month1, max_lag), 
@@ -1090,141 +1091,144 @@ def count_history(month1, max_lag, fixed_lag):
     return history
 
 ############################## CV ######################################
-def cv_xgb_skfrm(params, x_train, y_train, num_boost_round=3, n_splits=3, 
-                           n_repeats=2, random_state=0, verbose_eval=False):
-    '''
-    CV of xgb using Stratified KFold Repeated Models (SKFRM)
-    verbose_eval is the same as in xgb.train
-    '''
-    cv_results = {}
-    clfs = {}
-    running_time = {}
+# def cv_xgb_skfrm(params, x_train, y_train, num_boost_round=3, n_splits=3, 
+                           # n_repeats=2, random_state=0, verbose_eval=False):
+    # '''
+    # CV of xgb using Stratified KFold Repeated Models (SKFRM)
+    # verbose_eval is the same as in xgb.train
+    # '''
+    # cv_results = {}
+    # clfs = {}
+    # running_time = {}
     
-    eval_metric = params['eval_metric']
+    # eval_metric = params['eval_metric']
     
-    np.random.seed(random_state)
-    skf = StratifiedKFold(n_splits=n_splits, random_state=np.random.randint(10**6), shuffle=True)
+    # np.random.seed(random_state)
+    # skf = StratifiedKFold(n_splits=n_splits, random_state=np.random.randint(10**6), shuffle=True)
     
-    for m in range(n_repeats):
-        for n, (train_index, val_index) in enumerate(skf.split(x_train, y_train)):
+    # for m in range(n_repeats):
+        # for n, (train_index, val_index) in enumerate(skf.split(x_train, y_train)):
             
-            start_time = time.time()
+            # start_time = time.time()
             
-            # Construct DMatrix
-            dtrain = xgb.DMatrix(x_train.iloc[train_index], label=y_train.iloc[train_index])
-            dval = xgb.DMatrix(x_train.iloc[val_index], label=y_train.iloc[val_index])
+            # # Construct DMatrix
+            # dtrain = xgb.DMatrix(x_train.iloc[train_index], label=y_train.iloc[train_index])
+            # dval = xgb.DMatrix(x_train.iloc[val_index], label=y_train.iloc[val_index])
             
-            # Placeholder for evals_result
-            cv_results[m, n] = {}
-            params['seed'] = np.random.randint(10**6)
-            clfs[m, n] = xgb.train(params, dtrain, num_boost_round=num_boost_round,
-                                   evals=[(dtrain, 'train'), (dval, 'val')], 
-                                   maximize=True, early_stopping_rounds=None, 
-                                   evals_result=cv_results[m, n], verbose_eval=verbose_eval)
+            # # Placeholder for evals_result
+            # cv_results[m, n] = {}
+            # params['seed'] = np.random.randint(10**6)
+            # clfs[m, n] = xgb.train(params, dtrain, num_boost_round=num_boost_round,
+                                   # evals=[(dtrain, 'train'), (dval, 'val')], 
+                                   # maximize=True, early_stopping_rounds=None, 
+                                   # evals_result=cv_results[m, n], verbose_eval=verbose_eval)
         
-            running_time[m, n] = time.time() - start_time
+            # running_time[m, n] = time.time() - start_time
             
-            print('Repeat {}, split {}, validate score = {:.3f}, running time = {:.3f} min'.format(m, n, 
-                cv_results[m, n]['val'][eval_metric][-1], running_time[m, n]/60))
+            # print('Repeat {}, split {}, validate score = {:.3f}, running time = {:.3f} min'.format(m, n, 
+                # cv_results[m, n]['val'][eval_metric][-1], running_time[m, n]/60))
         
-    # Post-process cv_results
-    cv_results_final = {}
-    for m in range(n_repeats):
-        for n in range(n_splits):
-            cv_results_final['train', m, n] = cv_results[m, n]['train'][eval_metric]
-            cv_results_final['val', m, n] = cv_results[m, n]['val'][eval_metric]
+    # # Post-process cv_results
+    # cv_results_final = {}
+    # for m in range(n_repeats):
+        # for n in range(n_splits):
+            # cv_results_final['train', m, n] = cv_results[m, n]['train'][eval_metric]
+            # cv_results_final['val', m, n] = cv_results[m, n]['val'][eval_metric]
     
-    df = pd.DataFrame.from_dict(cv_results_final)
-    df.index.name = 'iteration'
-    df.columns.names = ['dataset', 'repeat', 'split']
+    # df = pd.DataFrame.from_dict(cv_results_final)
+    # df.index.name = 'iteration'
+    # df.columns.names = ['dataset', 'repeat', 'split']
 
-    print('Score mean = {:.3f}, std = {:.3f}'.format(df['val'].iloc[-1].mean(), df['val'].iloc[-1].std()))
+    # print('Score mean = {:.3f}, std = {:.3f}'.format(df['val'].iloc[-1].mean(), df['val'].iloc[-1].std()))
     
-    return df, clfs, running_time
+    # return df, clfs, running_time
 
-def plot_cv_results(df, font_size=22):
-    '''plot CV results stored in df'''
-    train_mean = df.mean(axis=1, level=0)['train']
-    val_mean = df.mean(axis=1, level=0)['val']
-    train_std = df.std(axis=1, level=0)['train']*10
-    val_std = df.std(axis=1, level=0)['val']*10
+# def plot_cv_results(df, eval_metric, font_size=22):
+    # '''plot CV results stored in df'''
+    # train_mean = df.mean(axis=1, level=0)['train']
+    # val_mean = df.mean(axis=1, level=0)['val']
+    # train_std = df.std(axis=1, level=0)['train']*10
+    # val_std = df.std(axis=1, level=0)['val']*10
 
-    plt.figure(figsize=(16, 9))
-    plt.rcParams.update({'font.size': 22})
-    plt.plot(df.index, train_mean, label='train')
-    plt.plot(df.index, val_mean, label='validate')
-    plt.fill_between(df.index, train_mean-train_std, train_mean+train_std, alpha=0.5)
-    plt.fill_between(df.index, val_mean-val_std, val_mean+val_std, alpha=0.5)
-    plt.grid()
-    plt.legend()
+    # plt.figure(figsize=(16, 9))
+    # plt.rcParams.update({'font.size': 22})
+    # plt.plot(df.index, train_mean, label='train')
+    # plt.plot(df.index, val_mean, label='validate')
+    # plt.fill_between(df.index, train_mean-train_std, train_mean+train_std, alpha=0.5)
+    # plt.fill_between(df.index, val_mean-val_std, val_mean+val_std, alpha=0.5)
+    # plt.grid()
+    # plt.legend()
     
     
-def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=0,
-        lag_train=5, lag_val=5, weight_set=(1), verbose_eval=True):
-    '''Train on one month and validate on another'''
-    history = {}
-    model_dict = {}
+# def cv_month(param, num_rounds, month_train, month_val, n_repeat=2, random_seed=0,
+        # lag_train=5, lag_val=5, weight_set=(1), verbose_eval=True):
+    # '''Train on one month and validate on another with different weights. Now it is not used anymore.'''
+    # history = {}
+    # model_dict = {}
 
-    x_train, y_train, weight_train = create_train(month_train, max_lag=lag_train, pattern_flag=True)
-    x_val, y_val, weight_val = create_train(month_val, max_lag=lag_val, pattern_flag=True)
+    # x_train, y_train, weight_train = create_train(month_train, max_lag=lag_train, pattern_flag=True)
+    # x_val, y_val, weight_val = create_train(month_val, max_lag=lag_val, pattern_flag=True)
 
-    gt_train = prep_map(x_train, y_train)
-    gt_val = prep_map(x_val, y_val)
+    # gt_train = prep_map(x_train, y_train)
+    # gt_val = prep_map(x_val, y_val)
 
-    dtrain = xgb.DMatrix(x_train, y_train)
-    dval = xgb.DMatrix(x_val, y_val)
+    # dtrain = xgb.DMatrix(x_train, y_train)
+    # dval = xgb.DMatrix(x_val, y_val)
 
-    ground_truth = {'train': gt_train, 'val': gt_val}
-    data_len = {'train': len(dtrain.get_label()), 'val': len(dval.get_label())}
+    # ground_truth = {'train': gt_train, 'val': gt_val}
+    # data_len = {'train': len(dtrain.get_label()), 'val': len(dval.get_label())}
 
-    for weight_index in weight_set:
-        history[weight_index] = {}
-        model_dict[weight_index] = []
+    # for weight_index in weight_set:
+        # history[weight_index] = {}
+        # model_dict[weight_index] = []
 
-        dtrain.set_weight(weight_train.values[:, weight_index])
-        dval.set_weight(weight_val.values[:, weight_index])
+        # dtrain.set_weight(weight_train.values[:, weight_index])
+        # dval.set_weight(weight_val.values[:, weight_index])
         
-        print('Start weight index {}'.format(weight_index))
-        print('#'*50)
+        # print('Start weight index {}'.format(weight_index))
+        # print('#'*50)
         
-        for n in range(n_repeat):
-            history[weight_index][n] = {}
+        # for n in range(n_repeat):
+            # history[weight_index][n] = {}
             
-            param['seed'] = np.random.randint(10**6)
+            # param['seed'] = np.random.randint(10**6)
             
-            time_start = time.time()
-            print('Train with weight {}, repetition {} of {}'.format(weight_index, n, n_repeat))
-            model = xgb.train(param, dtrain, num_rounds, evals=[(dtrain, 'train'), (dval, 'val')], 
-                verbose_eval=verbose_eval, feval=eval_map, evals_result=history[weight_index][n], 
-                gt=ground_truth, ts=data_len)
-            model_dict[weight_index].append(model)
-            time_end = time.time()
-            print('Validate logloss = {:.5f}, MAP@7 = {:.5f}, time = {:.2f} min'.format(
-                history[weight_index][n]['val']['mlogloss'][-1], 
-                history[weight_index][n]['val']['MAP@7'][-1], (time_end-time_start)/60))
-            print('-'*50)
-            print('')
-        print('')
+            # time_start = time.time()
+            # print('Train with weight {}, repetition {} of {}'.format(weight_index, n, n_repeat))
+            # model = xgb.train(param, dtrain, num_rounds, evals=[(dtrain, 'train'), (dval, 'val')], 
+                # verbose_eval=verbose_eval, feval=eval_map, evals_result=history[weight_index][n], 
+                # gt=ground_truth, ts=data_len)
+            # model_dict[weight_index].append(model)
+            # time_end = time.time()
+            # print('Validate logloss = {:.5f}, MAP@7 = {:.5f}, time = {:.2f} min'.format(
+                # history[weight_index][n]['val'][eval_metric][-1], 
+                # history[weight_index][n]['val']['MAP@7'][-1], (time_end-time_start)/60))
+            # print('-'*50)
+            # print('')
+        # print('')
 
-    history = {(w, n, d, m): history[w][n][d][m] 
-               for w in weight_set 
-               for n in range(n_repeat)
-               for d in ['train', 'val'] 
-               for m in ['mlogloss', 'MAP@7']}
-    history = pd.DataFrame(history)
-    history.columns.names = ['weight_index', 'repetition', 'data_set', 'metrics']
+    # history = {(w, n, d, m): history[w][n][d][m] 
+               # for w in weight_set 
+               # for n in range(n_repeat)
+               # for d in ['train', 'val'] 
+               # for m in [eval_metric, 'MAP@7']}
+    # history = pd.DataFrame(history)
+    # history.columns.names = ['weight_index', 'repetition', 'data_set', 'metrics']
         
-    return history, model_dict
-   
+    # return history, model_dict
 
 def train_test_month(param, num_rounds, month_train, month_val, sub_name,
                      month_test='2016-06-28', n_repeat=2, 
                      random_seed=0, max_lag=5, 
-                     fixed_lag=6, verbose_eval=True, n_features=250):
+                     fixed_lag=6, verbose_eval=True, 
+                     n_features=250, eval_train_flag=True):
     '''Train on one month and validate on another'''
     history = {}
     model_dict = {}
     y_pred = []
+    
+    # eval_metric in param
+    eval_metric = param['eval_metric']
 
     # Train data
     x_train, y_train, w_train = create_train(month_train, max_lag=max_lag, fixed_lag=fixed_lag, pattern_flag=True)
@@ -1250,7 +1254,12 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
     dtest = xgb.DMatrix(x_test)
 
     ground_truth = {'train': gt_train, 'val': gt_val}
-    data_len = {'train': len(dtrain.get_label()), 'val': len(dval.get_label())}
+    # If evaluate train set or not? 
+    # Disable can save time, and I do not care too much about train evaluation.
+    if eval_train_flag:
+        data_len = {'train': len(dtrain.get_label()), 'val': len(dval.get_label())}
+    else:
+        data_len = {'train': 0, 'val': len(dval.get_label())}
 
     np.random.seed(random_seed)
     for n in range(n_repeat):
@@ -1269,8 +1278,9 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
         y_pred.append(y_tmp)
         
         time_end = time.time()
-        print('Validate logloss = {:.5f}, MAP@7 = {:.5f}, time = {:.2f} min'.format(
-            history[n]['val']['mlogloss'][-1], 
+        print('Validate {} = {:.5f}, MAP@7 = {:.5f}, time = {:.2f} min'.format(
+            eval_metric,
+            history[n]['val'][eval_metric][-1], 
             history[n]['val']['MAP@7'][-1], (time_end-time_start)/60))
         print('-'*50)
         print('')
@@ -1279,7 +1289,7 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
     history = {(n, d, m): history[n][d][m] 
                for n in range(n_repeat)
                for d in ['train', 'val'] 
-               for m in ['mlogloss', 'MAP@7']}
+               for m in [eval_metric, 'MAP@7']}
     history = pd.DataFrame(history)
     history.columns.names = ['repetition', 'data_set', 'metrics']
     
@@ -1295,9 +1305,10 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
     y_sub.to_csv(sub_name, compression='gzip', index=False)
     
     return history, model_dict, y_pred, y_sub
-###########################################################################
+
+# ===========================================================================
     
-############################## MAP #########################################
+#  MAP ##
 # This part implements a hacky way of evaluating MAP during xgboost training.
 # This method is suitable when training on one month and validate on another 
 # month, since ncodpers is the key in ground truth dictionaries.
