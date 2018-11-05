@@ -232,7 +232,7 @@ def create_monthly_data():
 
     # Compare with previous results
 
-    # for m in tqdm.tqdm_notebook(month_list):
+    # for m in tqdm.tqdm(month_list):
     #     dt1 = pd.read_hdf('../input/data_month_{}.hdf'.format(m), 'data_month')
     #     dt2 = pd.read_hdf('../input/data_month_2_{}.hdf'.format(m), 'data_month')
     #     dt1 = dt1[dt2.columns]
@@ -1744,7 +1744,7 @@ def calculate_customer_product_pair():
         return target
 
     target = []
-    for m1, m2 in tqdm.tqdm_notebook(list(zip(month_list[:-2], month_list[1:-1]))):
+    for m1, m2 in tqdm.tqdm(list(zip(month_list[:-2], month_list[1:-1]))):
         df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(m1)).loc[:, ['ncodpers'] + target_cols]
         df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(m2)).loc[:, ['ncodpers'] + target_cols]
 
@@ -1789,7 +1789,7 @@ def mean_encoding_month_product():
     mean_encoding = []
     # (customer, product) pair for new products in every month
     customer_product_pair = {}
-    for m1, m2 in tqdm.tqdm_notebook(list(zip(month_list[:-2], month_list[1:-1]))):
+    for m1, m2 in tqdm.tqdm(list(zip(month_list[:-2], month_list[1:-1]))):
         # load first month data
         df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(m1), 'data_month')
         # load second month data
