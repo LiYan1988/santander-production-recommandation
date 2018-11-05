@@ -7,4 +7,6 @@ input/*
 *.pickle
 !notebooks/feature_importance.csv
 */.ipynb_checkpoints/*
+notebooks/__pycache__/*
+*.pyc
 */__pycache__/*
