@@ -77,6 +77,168 @@ month_list = ['2015-01-28', '2015-02-28', '2015-03-28', '2015-04-28', '2015-05-2
               '2016-01-28', '2016-02-28', '2016-03-28', '2016-04-28', '2016-05-28', '2016-06-28']
 
 
+def create_monthly_data():
+    '''Preprocess and clean data in each month and save to HDF files'''
+
+    flag_exist = True
+    for m in month_list:
+        if not os.path.exists('../input/data_month_{}.hdf'.format(m)):
+            flag_exist = False
+
+    if flag_exist:
+        return None
+
+    fecha_dato_train = pd.read_csv('../input/train_ver2.csv', usecols=cat_cols + ['fecha_dato'])
+    fecha_dato_test = pd.read_csv('../input/test_ver2.csv', usecols=cat_cols + ['fecha_dato'])
+
+    df2 = pd.concat((fecha_dato_train, fecha_dato_test), ignore_index=True)
+
+    del fecha_dato_train, fecha_dato_test
+    gc.collect()
+
+    # Data conversion
+
+    mapping_dict = {
+        'ind_empleado': {-99: 0, 'N': 1, 'B': 2, 'F': 3, 'A': 4, 'S': 5},
+        'sexo': {'V': 0, 'H': 1, -99: 2},
+        'ind_nuevo': {'0': 0, '1': 1, -99: 2},
+        'indrel': {'1': 0, '99': 1, -99: 2},
+        'indrel_1mes': {-99: 0, '1.0': 1, '1': 1, '2.0': 2, '2': 2, '3.0': 3, '3': 3, '4.0': 4, '4': 4, 'P': 5},
+        'tiprel_1mes': {-99: 0, 'I': 1, 'A': 2, 'P': 3, 'R': 4, 'N': 5},
+        'indresi': {-99: 0, 'S': 1, 'N': 2},
+        'indext': {-99: 0, 'S': 1, 'N': 2},
+        'conyuemp': {-99: 0, 'S': 1, 'N': 2},
+        'indfall': {-99: 0, 'S': 1, 'N': 2},
+        'tipodom': {-99: 0, '1': 1},
+        'ind_actividad_cliente': {'0': 0, '1': 1, -99: 2},
+        'segmento': {'02 - PARTICULARES': 0, '03 - UNIVERSITARIO': 1, '01 - TOP': 2, -99: 2},
+        'pais_residencia': {'LV': 102, 'BE': 12, 'BG': 50, 'BA': 61, 'BM': 117, 'BO': 62, 'JP': 82, 'JM': 116, 'BR': 17,
+                            'BY': 64, 'BZ': 113, 'RU': 43, 'RS': 89, 'RO': 41, 'GW': 99, 'GT': 44, 'GR': 39, 'GQ': 73,
+                            'GE': 78, 'GB': 9, 'GA': 45, 'GN': 98, 'GM': 110, 'GI': 96, 'GH': 88, 'OM': 100, 'HR': 67,
+                            'HU': 106, 'HK': 34, 'HN': 22, 'AD': 35, 'PR': 40, 'PT': 26, 'PY': 51, 'PA': 60, 'PE': 20,
+                            'PK': 84, 'PH': 91, 'PL': 30, 'EE': 52, 'EG': 74, 'ZA': 75, 'EC': 19, 'AL': 25, 'VN': 90,
+                            'ET': 54, 'ZW': 114, 'ES': 0, 'MD': 68, 'UY': 77, 'MM': 94, 'ML': 104, 'US': 15, 'MT': 118,
+                            'MR': 48, 'UA': 49, 'MX': 16, 'IL': 42, 'FR': 8, 'MA': 38, 'FI': 23, 'NI': 33, 'NL': 7,
+                            'NO': 46, 'NG': 83, 'NZ': 93, 'CI': 57, 'CH': 3, 'CO': 21, 'CN': 28, 'CM': 55, 'CL': 4,
+                            'CA': 2, 'CG': 101, 'CF': 109, 'CD': 112, 'CZ': 36, 'CR': 32, 'CU': 72, 'KE': 65, 'KH': 95,
+                            'SV': 53, 'SK': 69, 'KR': 87, 'KW': 92, 'SN': 47, 'SL': 97, 'KZ': 111, 'SA': 56, 'SG': 66,
+                            'SE': 24, 'DO': 11, 'DJ': 115, 'DK': 76, 'DE': 10, 'DZ': 80, 'MK': 105, -99: 1, 'LB': 81,
+                            'TW': 29, 'TR': 70, 'TN': 85, 'LT': 103, 'LU': 59, 'TH': 79, 'TG': 86, 'LY': 108, 'AE': 37,
+                            'VE': 14, 'IS': 107, 'IT': 18, 'AO': 71, 'AR': 13, 'AU': 63, 'AT': 6, 'IN': 31, 'IE': 5,
+                            'QA': 58, 'MZ': 27},
+        'canal_entrada': {'013': 49, 'KHP': 160, 'KHQ': 157, 'KHR': 161, 'KHS': 162, 'KHK': 10, 'KHL': 0, 'KHM': 12,
+                          'KHN': 21, 'KHO': 13, 'KHA': 22, 'KHC': 9, 'KHD': 2, 'KHE': 1, 'KHF': 19, '025': 159,
+                          'KAC': 57, 'KAB': 28, 'KAA': 39, 'KAG': 26, 'KAF': 23, 'KAE': 30, 'KAD': 16, 'KAK': 51,
+                          'KAJ': 41, 'KAI': 35, 'KAH': 31, 'KAO': 94, 'KAN': 110, 'KAM': 107, 'KAL': 74, 'KAS': 70,
+                          'KAR': 32, 'KAQ': 37, 'KAP': 46, 'KAW': 76, 'KAV': 139, 'KAU': 142, 'KAT': 5, 'KAZ': 7,
+                          'KAY': 54, 'KBJ': 133, 'KBH': 90, 'KBN': 122, 'KBO': 64, 'KBL': 88, 'KBM': 135, 'KBB': 131,
+                          'KBF': 102, 'KBG': 17, 'KBD': 109, 'KBE': 119, 'KBZ': 67, 'KBX': 116, 'KBY': 111, 'KBR': 101,
+                          'KBS': 118, 'KBP': 121, 'KBQ': 62, 'KBV': 100, 'KBW': 114, 'KBU': 55, 'KCE': 86, 'KCD': 85,
+                          'KCG': 59, 'KCF': 105, 'KCA': 73, 'KCC': 29, 'KCB': 78, 'KCM': 82, 'KCL': 53, 'KCO': 104,
+                          'KCN': 81, 'KCI': 65, 'KCH': 84, 'KCK': 52, 'KCJ': 156, 'KCU': 115, 'KCT': 112, 'KCV': 106,
+                          'KCQ': 154, 'KCP': 129, 'KCS': 77, 'KCR': 153, 'KCX': 120, 'RED': 8, 'KDL': 158, 'KDM': 130,
+                          'KDN': 151, 'KDO': 60, 'KDH': 14, 'KDI': 150, 'KDD': 113, 'KDE': 47, 'KDF': 127, 'KDG': 126,
+                          'KDA': 63, 'KDB': 117, 'KDC': 75, 'KDX': 69, 'KDY': 61, 'KDZ': 99, 'KDT': 58, 'KDU': 79,
+                          'KDV': 91, 'KDW': 132, 'KDP': 103, 'KDQ': 80, 'KDR': 56, 'KDS': 124, 'K00': 50, 'KEO': 96,
+                          'KEN': 137, 'KEM': 155, 'KEL': 125, 'KEK': 145, 'KEJ': 95, 'KEI': 97, 'KEH': 15, 'KEG': 136,
+                          'KEF': 128, 'KEE': 152, 'KED': 143, 'KEC': 66, 'KEB': 123, 'KEA': 89, 'KEZ': 108, 'KEY': 93,
+                          'KEW': 98, 'KEV': 87, 'KEU': 72, 'KES': 68, 'KEQ': 138, -99: 6, 'KFV': 48, 'KFT': 92,
+                          'KFU': 36, 'KFR': 144, 'KFS': 38, 'KFP': 40, 'KFF': 45, 'KFG': 27, 'KFD': 25, 'KFE': 148,
+                          'KFB': 146, 'KFC': 4, 'KFA': 3, 'KFN': 42, 'KFL': 34, 'KFM': 141, 'KFJ': 33, 'KFK': 20,
+                          'KFH': 140, 'KFI': 134, '007': 71, '004': 83, 'KGU': 149, 'KGW': 147, 'KGV': 43, 'KGY': 44,
+                          'KGX': 24, 'KGC': 18, 'KGN': 11}
+    }
+
+    df2.canal_entrada.replace(mapping_dict['canal_entrada'], inplace=True)
+    df2.canal_entrada.fillna(mapping_dict['canal_entrada'][-99], inplace=True)
+
+    mapping_dict['pais_residencia'][np.nan] = mapping_dict['pais_residencia'][-99]
+    df2.pais_residencia.replace(mapping_dict['pais_residencia'], inplace=True)
+
+    df2.segmento.replace({'02 - PARTICULARES': 0, '03 - UNIVERSITARIO': 1, '01 - TOP': 2, np.nan: 2}, inplace=True)
+
+    df2.ind_actividad_cliente.replace({0: 0, 1: 1, np.nan: 2}, inplace=True)
+
+    df2.tipodom.replace({np.nan: 0, 1: 1}, inplace=True)
+
+    df2.indfall.replace({np.nan: 0, 'S': 1, 'N': 2}, inplace=True)
+
+    df2.conyuemp.replace({np.nan: 0, 'S': 1, 'N': 2}, inplace=True)
+
+    df2.indext.replace({np.nan: 0, 'S': 1, 'N': 2}, inplace=True)
+
+    df2.indresi.replace({np.nan: 0, 'S': 1, 'N': 2}, inplace=True)
+
+    df2.tiprel_1mes.replace(mapping_dict['tiprel_1mes'], inplace=True)
+    df2.tiprel_1mes.fillna(0, inplace=True)
+
+    df2.indrel_1mes.replace('P', 5, inplace=True)
+    df2.indrel_1mes.fillna(0, inplace=True)
+    df2.indrel_1mes = pd.to_numeric(df2.indrel_1mes, errors='coerce')
+
+    df2.indrel.replace({np.nan: 2, 1: 0, 99: 1}, inplace=True)
+
+    df2.ind_nuevo.fillna(2, inplace=True)
+
+    df2.sexo.fillna(2, inplace=True)
+    df2.sexo.replace(mapping_dict['sexo'], inplace=True)
+
+    df2.ind_empleado.fillna(0, inplace=True)
+    df2.ind_empleado.replace(mapping_dict['ind_empleado'], inplace=True)
+
+    df2.age = pd.to_numeric(df2.age, errors='coerce')
+
+    mean_age = 40.
+    min_age = 20.
+    max_age = 90.
+    range_age = max_age - min_age
+    df2.age.fillna(mean_age, inplace=True)
+    df2.loc[df2.age > max_age, 'age'] = max_age
+    df2.loc[df2.age < min_age, 'age'] = min_age
+    df2.age = (df2.age - min_age) / range_age
+
+    df2.antiguedad = pd.to_numeric(df2.antiguedad, errors='coerce')
+
+    min_value = 0.
+    max_value = 256.
+    range_value = max_value - min_value
+    missing_value = 0.
+    df2.antiguedad.fillna(0.0, inplace=True)
+    df2.loc[df2.antiguedad < min_value, 'antiguedad'] = min_value
+    df2.loc[df2.antiguedad > max_value, 'antiguedad'] = max_value
+    df2.antiguedad = (df2.antiguedad - min_value) / range_value
+
+    df2.renta = pd.to_numeric(df2.renta, errors='coerce')
+
+    min_value = 0.
+    max_value = 1500000.
+    range_value = max_value - min_value
+    missing_value = 101850.
+    df2.renta.fillna(missing_value, inplace=True)
+    df2.loc[df2.renta < min_value, 'renta'] = min_value
+    df2.loc[df2.renta > max_value, 'renta'] = max_value
+    df2.renta = (df2.renta - min_value) / range_value
+
+    # Merge `cat_cols` with `target_cols`
+
+    target = pd.read_csv('../input/train_ver2.csv', usecols=['ncodpers', 'fecha_dato'] + target_cols)
+
+    df2 = pd.merge(df2, target, on=['fecha_dato', 'ncodpers'], how='left')
+    df2.fillna(0.0, inplace=True)
+
+    for m in month_list:
+        dt = df2.loc[df2.fecha_dato == m, :].copy()
+        dt.to_hdf('../input/data_month_{}.hdf'.format(m), 'data_month', complib='blosc:lz4', complevel=9, format='t')
+
+    # Compare with previous results
+
+    # for m in tqdm.tqdm_notebook(month_list):
+    #     dt1 = pd.read_hdf('../input/data_month_{}.hdf'.format(m), 'data_month')
+    #     dt2 = pd.read_hdf('../input/data_month_2_{}.hdf'.format(m), 'data_month')
+    #     dt1 = dt1[dt2.columns]
+    #     print((dt1!=dt2).sum().sum())
+
+
 def encoding(x):
     '''
     Encoding the pattern in one product for one customer
@@ -739,8 +901,9 @@ def create_test(month='2016-06-28', max_lag=5, fixed_lag=6, pattern_flag=True):
                                    np.float_power(2, np.arange(0, len(target_cols))), axis=1,
                                    dtype=np.float64)
     # Load mean encoding data
-    mean_encoding_result = pd.read_hdf('../input/mean_encoding_result_eda_4_21.hdf',
-                                       'mean_encoding_result')
+    mean_encoding_result = calculate_customer_product_pair()
+    # mean_encoding_result = pd.read_hdf('../input/mean_encoding_result_eda_4_21.hdf',
+    #                                    'mean_encoding_result')
     # Merge with mean encoding result
     df2 = df2.merge(mean_encoding_result, on='target_combine', how='left')
 
@@ -931,8 +1094,9 @@ def count_history(month1, max_lag, fixed_lag):
     '''
 
     if os.path.exists('../input/history_count_{}_{}_{}.hdf'.format(month1, max_lag, fixed_lag)):
-        df = pd.read_hdf('../input/history_count_{}_{}_{}.hdf'.format(month1,
-                                                                      max_lag, fixed_lag), 'history_count')
+        df = pd.read_hdf(
+            '../input/history_count_{}_{}_{}.hdf'.format(month1, max_lag, fixed_lag),
+            'history_count')
 
         return df
 
@@ -945,8 +1109,8 @@ def count_history(month1, max_lag, fixed_lag):
     customer_product_pair = pd.read_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
     if month_new < len(month_list) - 1:
         # Customers with new products in month_new
-        ncodpers_list = customer_product_pair.loc[customer_product_pair.fecha_dato == month_list[month_new],
-                                                  'ncodpers'].unique().tolist()
+        ncodpers_list = customer_product_pair.loc[
+            customer_product_pair.fecha_dato == month_list[month_new], 'ncodpers'].unique().tolist()
 
     # Load data for all the lag related months
     df = []
@@ -985,7 +1149,8 @@ def count_history(month1, max_lag, fixed_lag):
     # Exponent average of products for each (customer, product) pair with 
     # different decay factors 
     mean_exp_product = pd.DataFrame()
-    mean_exp_product['ncodpers'] = df.index.tolist()  # Note: orders of ncodpers in df and ncodpers_list are different!
+    # Note: orders of ncodpers in df and ncodpers_list are different!
+    mean_exp_product['ncodpers'] = df.index.tolist()
     mean_exp_alpha1 = 0.1
     mean_exp_weight1 = np.float_power(1 - mean_exp_alpha1, np.arange(0, max_lag))
     mean_exp_weight1 = mean_exp_weight1[::-1] / np.sum(mean_exp_weight1)
@@ -993,10 +1158,10 @@ def count_history(month1, max_lag, fixed_lag):
     mean_exp_weight2 = np.float_power(1 - mean_exp_alpha2, np.arange(0, max_lag))
     mean_exp_weight2 = mean_exp_weight2[::-1] / np.sum(mean_exp_weight2)
     for k in target_cols:
-        mean_exp_product[k + '_lag_exp_mean1'] = np.average(group0.get_group(k).values, axis=1,
-                                                            weights=mean_exp_weight1)  # group0.get_group(k).apply(np.average, axis=1, weights=mean_exp_weight1).values
-        mean_exp_product[k + '_lag_exp_mean2'] = np.average(group0.get_group(k).values, axis=1,
-                                                            weights=mean_exp_weight2)  # group0.get_group(k).apply(np.average, axis=1, weights=mean_exp_weight2).values
+        mean_exp_product[k + '_lag_exp_mean1'] = \
+            np.average(group0.get_group(k).values, axis=1, weights=mean_exp_weight1)
+        mean_exp_product[k + '_lag_exp_mean2'] = \
+            np.average(group0.get_group(k).values, axis=1, weights=mean_exp_weight2)
 
     mean_exp_product.set_index('ncodpers', inplace=True)
 
@@ -1239,7 +1404,7 @@ def count_history(month1, max_lag, fixed_lag):
 
 # return history, model_dict
 
-def train_test_month(param, num_rounds, month_train, month_val, sub_name,
+def train_test_month(param, num_rounds, month_train, month_val, sub_name=None,
                      month_test='2016-06-28', n_repeat=2,
                      random_seed=0, max_lag=5,
                      fixed_lag=6, verbose_eval=True,
@@ -1261,12 +1426,15 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
 
     # Select features
     if n_features is not None:
-        fi = pd.read_csv('feature_importance.csv', )
-        fi = fi.iloc[:min(n_features, fi.shape[0]), 0].values.tolist()
-        fi = list(set(fi) | set(target_cols) | set(cat_cols))
-        x_train = x_train[fi]
-        x_val = x_val[fi]
-        x_test = x_test[fi]
+        try:
+            fi = pd.read_csv('feature_importance.csv', )
+            fi = fi.iloc[:min(n_features, fi.shape[0]), 0].values.tolist()
+            fi = list(set(fi) | set(target_cols) | set(cat_cols))
+            x_train = x_train[fi]
+            x_val = x_val[fi]
+            x_test = x_test[fi]
+        except:
+            pass
 
     gt_train = prep_map(x_train, y_train)
     gt_val = prep_map(x_val, y_val)
@@ -1324,13 +1492,14 @@ def train_test_month(param, num_rounds, month_train, month_val, sub_name,
     test_id = x_test.loc[:, 'ncodpers'].values
     y_sub = [' '.join([target_cols[k] for k in pred]) for pred in y_sub]
     y_sub = pd.DataFrame({'ncodpers': test_id, 'added_products': y_sub})
-    y_sub.to_csv(sub_name, compression='gzip', index=False)
+    if sub_name is not None:
+        y_sub.to_csv(sub_name, compression='gzip', index=False)
 
     return history, model_dict, y_pred, y_sub
 
 
 def cv_all_month(params, train, val=None, n_features=350, num_boost_round=3,
-        n_repeats=2, random_state=0, verbose_eval=False):
+                 n_repeats=2, random_state=0, verbose_eval=False):
     '''
     CV of xgb using Stratified KFold Repeated Models (SKFRM)
     verbose_eval is the same as in xgb.train
@@ -1360,7 +1529,7 @@ def cv_all_month(params, train, val=None, n_features=350, num_boost_round=3,
             x_val = x_val[fi]
 
     dtrain = xgb.DMatrix(x_train, label=y_train, weight=w_train)
-    
+
     if val is not None:
         dval = xgb.DMatrix(x_val, label=y_val, weight=w_val)
         eval_list = [(dtrain, 'train'), (dval, 'val')]
@@ -1383,21 +1552,23 @@ def cv_all_month(params, train, val=None, n_features=350, num_boost_round=3,
 
         # Placeholder for evals_result
         cv_results[m] = {}
-        params['seed'] = np.random.randint(10**6)
+        params['seed'] = np.random.randint(10 ** 6)
         clfs[m] = xgb.train(params, dtrain,
-            num_boost_round=num_boost_round,
-            evals=eval_list,
-            evals_result=cv_results[m],
-            verbose_eval=verbose_eval, feval=eval_map,
-            gt=ground_truth, ts=data_len)
+                            num_boost_round=num_boost_round,
+                            evals=eval_list,
+                            evals_result=cv_results[m],
+                            verbose_eval=verbose_eval, feval=eval_map,
+                            gt=ground_truth, ts=data_len)
 
         running_time[m] = time.time() - start_time
 
         if val is not None:
             print('Repeat {}, validate score = {:.3f}, running time = {:.3f} min'.format(m,
-                cv_results[m]['val'][eval_metric][-1], running_time[m]/60))
+                                                                                         cv_results[m]['val'][
+                                                                                             eval_metric][-1],
+                                                                                         running_time[m] / 60))
         else:
-            print('Repeat {}, running time = {:.3f} min'.format(m, running_time[m]/60))
+            print('Repeat {}, running time = {:.3f} min'.format(m, running_time[m] / 60))
 
     # Post-process cv_results
     if val is not None:
@@ -1455,6 +1626,7 @@ def predict_all_month(model_dict, x_test, sub_name, n_features=350, n_trees=0):
     y_sub.to_csv(sub_name, compression='gzip', index=False)
 
     return y_pred, y_sub
+
 
 # ===========================================================================
 #
@@ -1603,6 +1775,12 @@ def mean_encoding_month_product():
     Encode previous month products with mean of buying each product in the next month
     '''
     # column names for newly purchased products
+
+    if os.path.exists('../input/mean_encoding_result_eda_4_21.hdf'):
+        mean_encoding_result = pd.read_hdf('../input/mean_encoding_result_eda_4_21.hdf',
+                                           'mean_encoding_result')
+        return mean_encoding_result
+
     new_cols = [k + '_new' for k in target_cols]
     new_cols_map = {k + '_new': n for n, k in enumerate(target_cols)}
     # ordered dict containing new products in each month, key is the first month
@@ -1681,3 +1859,74 @@ def mean_encoding_month_product():
                                 'mean_encoding_result')
 
     return mean_encoding_result
+
+
+def calculate_feature_importance(param,
+                                 num_rounds=3,
+                                 n_repeat=2,
+                                 month_train='2015-06-28',
+                                 month_val='2016-05-28',
+                                 random_seed=42,
+                                 fi_name=None):
+    """
+    Calculate feature importance using xgboost
+    Many parameters of train_test_month are set to the default values
+    """
+    history, model_dict, y_pred, y_sub = \
+        train_test_month(param, num_rounds, month_train, month_val,
+                         sub_name=None, n_repeat=n_repeat, random_seed=random_seed, n_features=None)
+
+    fi = pd.DataFrame({i: model_dict[i].get_score(importance_type='gain') for i in range(n_repeat)})
+    fi['mean'] = fi.iloc[:, :n_repeat].mean(axis=1)
+    fi['std'] = fi.iloc[:, :n_repeat].std(axis=1)
+    fi.sort_values(by=['mean'], inplace=True, ascending=False)
+    if fi_name is not None:
+        fi.to_csv(fi_name)
+
+    return fi
+
+
+def plot_history_val(history):
+    '''Plot CV history of validation'''
+
+    n_repeat = np.unique(history.columns.get_level_values(0).values).shape[0]
+    history_val = history.xs(axis=1, level=[1, 2], key=['val', 'MAP@7']).copy()
+    history_val['mean'] = history_val.iloc[:, :n_repeat].mean(axis=1)
+    history_val['std'] = history_val.iloc[:, :n_repeat].std(axis=1)
+
+    plt.figure(figsize=(16, 9))
+    plt.plot(history_val['mean'])
+    plt.fill_between(
+        history_val.index,
+        history_val['mean'] + history_val['std'],
+        history_val['mean'] - history_val['std'],
+        alpha=0.3)
+    plt.grid()
+
+    return None
+
+
+def plot_feature_importance(model_dict):
+    '''Plot feature importance of train_test_month in bar plot.'''
+    n_repeat = len(model_dict)
+    # Feature importance
+    fi = pd.DataFrame({i: model_dict[i].get_score(importance_type='gain') for i in range(n_repeat)})
+    fi['mean'] = fi.iloc[:, :n_repeat].mean(axis=1)
+    fi['std'] = fi.iloc[:, :n_repeat].std(axis=1)
+    fi.sort_values(by=['mean'], inplace=True, ascending=False)
+
+    plt.rcParams.update({'figure.figsize': '16, 240'})
+    plt.rcParams.update({'font.size': '22'})
+    fig, ax = plt.subplots()
+    ax.barh(fi.index, fi['mean'].values, log=True, xerr=fi['std'].values)
+    ax.grid()
+    ax.tick_params(labelbottom=True, labeltop=True)
+    ax.set_ylim(fi.shape[0], -0.5)
+
+    plt.figure(figsize=(16, 9))
+    plt.plot(fi.values[:, n_repeat])
+    plt.grid()
+    plt.yscale('log')
+
+    return fi
+
