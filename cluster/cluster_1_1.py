@@ -12,7 +12,7 @@ x_train = []
 y_train = []
 w_train = []
 fixed_lag = 6
-for i, m in tqdm.tqdm(enumerate(month_list), total=len(month_list)):
+for i, m in enumerate(month_list):
     if m in ['2015-01-28', '2016-06-28']:
         continue
     x_tmp, y_tmp, w_tmp = create_train(m, max_lag=i, fixed_lag=fixed_lag, pattern_flag=True)
@@ -51,7 +51,7 @@ n_repeats = 2
 n_trees = 2
 train = {'x': x_train.iloc[:n_rows, :], 'y': y_train.iloc[:n_rows], 'w': w_train.iloc[:n_rows]}
 val = {'x': x_val.iloc[:n_rows, :], 'y': y_val.iloc[:n_rows], 'w': w_val.iloc[:n_rows]}
-df, clfs, running_time = cv_all_month(param, train, val, n_features=350, num_boost_round=n_trees,
-    n_repeats=n_repeats, random_state=0, verbose_eval=True)
+#df, clfs, running_time = cv_all_month(param, train, val, n_features=350, num_boost_round=n_trees,
+#    n_repeats=n_repeats, random_state=0, verbose_eval=True)
 
-save_pickle('cluster_1_1.pickle', (df, clfs, running_time))
+#save_pickle('cluster_1_1.pickle', (df, clfs, running_time))
