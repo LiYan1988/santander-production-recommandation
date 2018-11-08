@@ -4,8 +4,8 @@
 #SBATCH -J cluster_1_2_all_month_validate
 #SBATCH -N 1
 #SBATCH -n 20
-#SBATCH -C MEM128
-#SBATCH -t 0-16:0:0
+#SBATCH -C MEM64
+#SBATCH -t 0-00:10:00
 #SBATCH -o cluster_1_2_all_month_validate.stdout
 #SBATCH -e cluster_1_2_all_month_validate.stderr
 module purge 
