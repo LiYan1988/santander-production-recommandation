@@ -1769,6 +1769,46 @@ def calculate_customer_product_pair():
     target.to_hdf('../input/customer_product_pair.hdf', 'customer_product_pair')
     return target
 
+def calculate_customer_product_pair_binary():
+    '''
+    Prepare customer product pairs for binary classification
+    '''
+    if os.path.exists('../input/customer_product_pair_binary.hdf'):
+        target = pd.read_hdf('../input/customer_product_pair_binary.hdf', 'customer_product_pair')
+        return target
+
+    target = []
+    for m1, m2 in tqdm.tqdm(list(zip(month_list[:-2], month_list[1:-1]))):
+        df1 = pd.read_hdf('../input/data_month_{}.hdf'.format(m1)).loc[:, ['ncodpers'] + target_cols]
+        df2 = pd.read_hdf('../input/data_month_{}.hdf'.format(m2)).loc[:, ['ncodpers'] + target_cols]
+    
+        df1.set_index('ncodpers', inplace=True)
+        df2.set_index('ncodpers', inplace=True)
+    
+        dt = df2.join(df1, how='left', lsuffix='_2', rsuffix='_1').fillna(0.0)
+        dt = pd.DataFrame(dt.values[:, :19] - dt.values[:, 19:], index=df2.index, columns=target_cols)
+        dt.reset_index(inplace=True)
+        dt = dt.melt(id_vars='ncodpers')
+        dt['variable'] = dt['variable'].map({k: i for i, k in enumerate(target_cols)})
+        
+        dt2 = df2.copy()
+        dt2.reset_index(inplace=True)
+        dt2 = dt2.melt(id_vars='ncodpers')
+        dt2['variable'] = dt2['variable'].map({k: i for i, k in enumerate(target_cols)})
+        
+        dt = dt.loc[dt2['value'] == 0.0]
+        dt.drop('value', axis=1, inplace=True)
+        dt.reset_index(drop=True, inplace=True)
+        dt['fecha_dato'] = m2
+    
+        target.append(dt)
+
+    target = pd.concat(target, ignore_index=True)
+    target.columns = ['ncodpers', 'product', 'fecha_dato']
+
+    target.to_hdf('../input/customer_product_pair_binary.hdf', 'customer_product_pair')
+    return target
+
 
 def mean_encoding_month_product():
     '''
